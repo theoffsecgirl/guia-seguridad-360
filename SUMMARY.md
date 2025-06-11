@@ -5,7 +5,7 @@
 ---
 
 * [🚀 Introducción](introduccion/README.md)
-  * [Acerca de esta Guía](introduccion/acerca-de-esta-guia.md)
+  * [💎 Acerca de esta Guía](introduccion/acerca-de-esta-guia.md)
   * [Configuración del Entorno](introduccion/configuracion-del-entorno.md)
 * [📚 Fundamentos Esenciales](fundamentos-esenciales/README.md)
   * [Internet y Redes](fundamentos-esenciales/internet-y-redes-para-pentesting.md)
