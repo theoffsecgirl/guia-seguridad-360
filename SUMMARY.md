@@ -1,27 +1,20 @@
-# Índice
+# Table of contents
 
-* [👋🏻 Bienvenida](README.md)
-
----
-
-* [🚀 Introducción](introduccion/README.md)
-  * [Acerca de esta Guía](introduccion/acerca-de-esta-guia.md)
+* [🚀 Introducción](README.md)
+  * [💎 Acerca de esta Guía](introduccion/acerca-de-esta-guia.md)
   * [Configuración del Entorno](introduccion/configuracion-del-entorno.md)
 * [📚 Fundamentos Esenciales](fundamentos-esenciales/README.md)
   * [Internet y Redes](fundamentos-esenciales/internet-y-redes-para-pentesting.md)
   * [Introducción a DNS](fundamentos-esenciales/introduccion-a-dns.md)
   * [Puertos y Servicios Comunes](fundamentos-esenciales/puertos-y-servicios-comunes.md)
-  * [Puertos Alternativos](puertos-alternativos.nd)
+  * [Puertos Alternativos](fundamentos-esenciales/puertos-alternativos.md)
   * [HTTP y Seguridad Web](fundamentos-esenciales/fundamentos-de-http-y-seguridad-web.md)
-  * [Patrones de Subdominios y Generación de Permutaciones](patrones-subs-y-permutaciones.md)
-  * [Uso de /etc/hosts en Pentesting y Bug Bounty](uso-etc-host)
-* [🔎 Fase de Reconocimiento](fase-de-reconocimiento/README.md)
+  * [Patrones de Subdominios y Generación de Permutaciones](fundamentos-esenciales/patrones-de-subdominios-y-generacion-de-permutaciones.md)
+  * [Uso de /etc/hosts en Pentesting y Bug Bounty](fundamentos-esenciales/uso-de-etc-hosts-en-pentesting-y-bug-bounty.md)
+* [🔭 Fase de Reconocimiento](fase-de-reconocimiento/README.md)
   * [Introducción al Reconocimiento](fase-de-reconocimiento/introduccion-al-reconocimiento-ofensivo.md)
-  * [Herramientas de Reconocimiento](fase-de-reconocimiento/herramientas-de-reconocimiento/README.md)
-
----
-
-* [📂ANEXOS](ANEXOS/README.md)
+  * [Herramientas de Reconocimiento](fase-de-reconocimiento/herramientas-de-reconocimiento.md)
+* [📂ANEXOS](anexos/README.md)
   * [Herramientas Auxiliares](ANEXOS/herramientas-auxiliares-y-tecnicas.md)
-  * [Chuletas Rápidas (Cheatsheets)](ANEXOS/chuletas-rapidas-cheatsheets/README.md)
+  * [Chuletas Rápidas (Cheatsheets)](anexos/chuletas-rapidas-cheatsheets/README.md)
     * [ffuf Cheatsheet](ANEXOS/chuletas-rapidas-cheatsheets/ffuf-cheatsheet.md)
