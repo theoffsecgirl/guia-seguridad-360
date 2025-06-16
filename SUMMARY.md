@@ -9,7 +9,7 @@
   * [Puertos y Servicios Comunes](fundamentos-esenciales/puertos-y-servicios-comunes.md)
   * [Puertos Alternativos](fundamentos-esenciales/puertos-alternativos.md)
   * [HTTP y Seguridad Web](fundamentos-esenciales/fundamentos-de-http-y-seguridad-web.md)
-  * [Patrones de Subdominios y Generación de Permutaciones](fundamentos-esenciales/patrones-de-subdominios-y-generacion-de-permutaciones.md)
+  * [Patrones de Subdominios y Generación de Permutaciones](fundamentos-esenciales/patrones-de-sub-y-generacion-de-permutaciones.md)
   * [Uso de /etc/hosts en Pentesting y Bug Bounty](fundamentos-esenciales/uso-de-etc-hosts-en-pentesting-y-bug-bounty.md)
 * [Fase de Reconocimiento](fase-de-reconocimiento/README.md)
   * [Introducción al Reconocimiento](fase-de-reconocimiento/introduccion-al-reconocimiento-ofensivo.md)
