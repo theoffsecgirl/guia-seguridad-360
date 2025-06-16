@@ -11,7 +11,7 @@ Esta sección es la más teórica, pero también la más importante. Un conocimi
 * **[Puertos y Servicios Comunes](./puertos-y-servicios-comunes.md):** Las puertas de entrada más habituales a los sistemas y qué suele haber detrás de ellas.
 * **[Puertos Alternativos](./puertos-alternativos.md):** Una mirada a los puertos menos comunes que a menudo esconden servicios interesantes.
 * **[HTTP y Seguridad Web](./fundamentos-de-http-y-seguridad-web.md):** El protocolo que mueve la web y que será nuestro principal objetivo.
-* **[Patrones de Subdominios y Generación de Permutaciones](./patrones-de-subdominios-y-generacion-de-permutaciones.md):** Cómo se estructuran y generan los subdominios, clave para el reconocimiento.
+* **[Patrones de Subdominios y Generación de Permutaciones](./patrones-de-subs-y-generacion-de-permutaciones.md):** Cómo se estructuran y generan los subdominios, clave para el reconocimiento.
 * **[Uso de /etc/hosts en Pentesting y Bug Bounty](./uso-de-etc-hosts-en-pentesting-y-bug-bounty.md):** Un truco fundamental para redirigir tráfico y probar VHosts en nuestro entorno local.
 
 Invierte tiempo aquí. La recompensa será enorme.
