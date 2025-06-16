@@ -1,3 +1,5 @@
+# Patrones de Subdominios y Generación de Permutaciones
+
 ### Introducción
 
 Una de las técnicas más efectivas en el reconocimiento de activos es entender y predecir los **patrones de nomenclatura** que las organizaciones utilizan para sus subdominios. Los equipos de desarrollo y operaciones (DevOps) suelen seguir convenciones lógicas para separar diferentes **entornos** (desarrollo, pruebas, producción), **servicios** (aplicación principal, API, panel de administración) y **versiones**.
