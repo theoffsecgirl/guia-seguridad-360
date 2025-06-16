@@ -15,9 +15,11 @@
   * [Uso de /etc/hosts en Pentesting](01-fundamentos-esenciales/01g-uso-de-etc-hosts.md)
 * [Fase de Reconocimiento](02-fase-de-reconocimiento/README.md)
 
-  * [Introducción al Reconocimiento Ofensivo](02-fase-de-reconocimiento/02a-introduccion-al-reconocimiento.md)
-  * [Herramientas de Reconocimiento](02-fase-de-reconocimiento/02b-herramientas-de-reconocimiento.md)
-  * [Patrones de Subdominios y Generación](02-fase-de-reconocimiento/02c-patrones-de-subdominios.md)
+  * [Anatomía de un Dominio](02-fase-de-reconocimiento/02a-anatomia-de-un-dominio.md)
+  * [Reconocimiento Pasivo](02-fase-de-reconocimiento/02b-reconocimiento-pasivo.md)
+  * [Reconocimiento Activo](02-fase-de-reconocimiento/02c-reconocimiento-activo.md)
+  * [Descubrimiento de Contenido Web](02-fase-de-reconocimiento/02d-descubrimiento-de-contenido-web.md)
+  * [Resumen de Herramientas de Reconocimiento](02-fase-de-reconocimiento/02e-resumen-de-herramientas.md)
 * [Seguridad Ofensiva 360](03-seguridad-ofensiva-360/README.md)
 
   * [Hacking de APIs](03-seguridad-ofensiva-360/03a-hacking-de-apis.md)
