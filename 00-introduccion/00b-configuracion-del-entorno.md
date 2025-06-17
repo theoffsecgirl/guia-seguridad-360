@@ -1,4 +1,4 @@
-# Configuración del Entorno: Tu Laboratorio Hacker
+# Configuración del Entorno
 
 Para poder practicar las técnicas que veremos en esta guía, es absolutamente esencial que construyamos nuestro propio laboratorio de hacking. Empezaremos con un laboratorio local y virtualizado y luego exploraremos las plataformas de entrenamiento online.
 
