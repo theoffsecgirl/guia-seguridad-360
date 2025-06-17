@@ -111,7 +111,7 @@ Mis "dotfiles" son mi configuración personal para la terminal. Si los instalas,
 
 ```bash
 # Clona el repositorio desde GitHub
-git clone [https://github.com/theoffsecgirl/dotfiles.git](https://github.com/theoffsecgirl/dotfiles.git)
+git clone https://github.com/theoffsecgirl/dotfiles.git
 
 # Entra en la nueva carpeta y ejecuta el script de instalación
 cd dotfiles
