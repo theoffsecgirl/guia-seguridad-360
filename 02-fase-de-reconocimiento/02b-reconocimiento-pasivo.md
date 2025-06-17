@@ -20,13 +20,13 @@ Los registros públicos de certificados SSL/TLS son una mina de oro para descubr
 
 * **Herramientas/Servicios Clave:** `crt.sh`, `censys.io`.
 
-> **➡️ Para una guía detallada sobre esta técnica, consulta nuestra página dedicada: {% content-ref page="02-fase-de-reconocimiento/02b-2-certificate-transparency.md" %}**
+> **➡️ Para una guía detallada sobre esta técnica, consulta nuestra página dedicada: [Técnica Profunda: Certificate Transparency](./02b-2-certificate-transparency.md)**
 
 ### 2. OSINT y Motores de Búsqueda (Google Dorking)
 
 Utilizar la información públicamente disponible en internet es la esencia del OSINT. Los motores de búsqueda como Google, Bing o DuckDuckGo han indexado una cantidad masiva de información que podemos filtrar con búsquedas avanzadas para encontrar subdominios, archivos sensibles, errores de configuración y mucho más.
 
-> **➡️ Para aprender a dominar esta técnica, ve a nuestra guía completa: {% content-ref page="02-fase-de-reconocimiento/02b-1-google-dorking.md" %}**
+> **➡️ Para aprender a dominar esta técnica, ve a nuestra guía completa: [Técnica Profunda: Google Dorking](./02b-1-google-dorking.md)**
 
 ### 3. Descubrimiento de ASN y Rangos de IP
 
