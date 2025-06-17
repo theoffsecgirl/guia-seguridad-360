@@ -1,2 +1,0 @@
-# Chuletas Rápidas (Cheatsheets)
-
