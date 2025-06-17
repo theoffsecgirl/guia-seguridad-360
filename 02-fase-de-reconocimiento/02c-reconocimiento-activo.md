@@ -2,7 +2,7 @@
 
 A diferencia del reconocimiento pasivo, el **Reconocimiento Activo** implica interactuar directamente con la infraestructura del objetivo. Estas técnicas son más "ruidosas" (pueden ser detectadas por firewalls o sistemas de detección de intrusos), pero a cambio nos proporcionan información mucho más precisa y en tiempo real.
 
-> **⚠️ Advertencia si estas en un programa Bug Bounty:** ¡Ojo con el scope del programa! El escaneo de puertos agresivo y otras técnicas activas pueden estar prohibidas o limitadas en algunos programas de Bug Bounty. Revisa siempre las reglas antes de lanzar cualquier herramienta de reconocimiento activo.
+> **⚠️ Advertencia si estas en un programa Bug Bo:** ¡Ojo con el scope del programa! El escaneo de puertos agresivo y otras técnicas activas pueden estar prohibidas o limitadas en algunos programas de Bug Bounty. Revisa siempre las reglas antes de lanzar cualquier herramienta de reconocimiento activo.
 
 ---
 
