@@ -18,6 +18,6 @@ En esta fase, somos detectives digitales. Dividiremos nuestras técnicas en dos 
 * **[Reconocimiento Activo](./02c-reconocimiento-activo.md):** Pasaremos a la acción, interactuando con los sistemas del objetivo para validar subdominios, escanear puertos e identificar las tecnologías que utilizan.
 * **[Descubrimiento de Contenido Web](./02d-descubrimiento-de-contenido-web.md):** Nos centraremos en encontrar directorios y endpoints que no están enlazados públicamente en las aplicaciones web, usando técnicas como el fuzzing.
   * **[Técnica Profunda: Ficheros Sensibles Expuestos](./02d-1-ficheros-sensibles.md):** La caza del tesoro definitiva: buscaremos archivos como `.git`, `.env` y `Dockerfile` que pueden contener secretos, credenciales y la lógica interna de la aplicación.
-* **[Resumen de Herramientas](./02e-resumen-de-herramientas.md):** Una chuleta rápida con todo el arsenal mencionado en el capítulo, categorizado por su función.
+* **[Arsenal de Reconocimiento](./02e-arsenal-de-reconocimiento):** Herramientas de línea de comandos más importantes que usamos durante la fase de reconocimiento.
 
 ¡Ponte tu sombrero de detective, empezamos a investigar!
