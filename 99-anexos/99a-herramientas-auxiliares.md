@@ -1,3 +1,41 @@
+# Herramientas y Habilidades Auxiliares
+
+Hay ciertas herramientas y habilidades que no pertenecen a una única fase del hacking, sino que son transversales y se utilizan constantemente. En esta sección, repasaremos las más importantes.
+
+## curl: La Navaja Suiza para Peticiones HTTP
+
+`curl` es una herramienta de línea de comandos para transferir datos con URLs. Es fundamental para interactuar con servicios web de forma rápida y programática desde la terminal.
+
+### Opciones Comunes de `curl`
+
+
+| Opción   | Descripción                                        |
+| :-------- | :-------------------------------------------------- |
+| `-X`      | Método HTTP a usar (GET, POST, etc.).              |
+| `-H`      | Añadir cabecera personalizada.                     |
+| `-d`      | Enviar datos en el cuerpo de la petición.          |
+| `-i`      | Incluir cabeceras de respuesta en la salida.        |
+| `-I`      | Solo solicitar cabeceras (método HEAD).            |
+| `-L`      | Seguir redirecciones (códigos 3xx).                |
+| `-v`      | Modo detallado (verbose), para ver todo el proceso. |
+| `-s`      | Modo silencioso, para ocultar el progreso.          |
+| `-o`      | Guardar la salida en un archivo.                    |
+| `--proxy` | Especificar un proxy para enviar el tráfico.       |
+
+### Ejemplos Prácticos
+
+```bash
+# Realizar una petición GET simple y detallada
+curl -v [https://ejemplo.com](https://ejemplo.com)
+
+# Realizar un POST enviando datos de un formulario
+curl -X POST [https://ejemplo.com/login](https://ejemplo.com/login) -d "username=admin&password=admin123"
+
+# Enviar una petición con una cabecera personalizada
+curl -H "X-Custom-Header: MiValor" [https://ejemplo.com](https://ejemplo.com)
+```
+
+
 # Proxy Tools: Tus Ojos en el Tráfico Web
 
 Como profesional de la seguridad ofensiva, necesitas ser capaz de ver, analizar y modificar las peticiones HTTP/HTTPS que tu navegador (o cualquier otra herramienta) envía a los servidores web, así como las respuestas que estos devuelven. Las herramientas proxy actúan como un intermediario (Man-in-the-Middle) entre tu cliente y el servidor.
@@ -49,7 +87,8 @@ Cambiar la configuración de proxy del navegador manualmente cada vez es un engo
 
 _Existen numerosos tutoriales y guías detalladas online que explican paso a paso cómo configurar Burp Suite, ZAP, Caido y FoxyProxy con diferentes navegadores._
 
-### Entendiendo las Expresiones Regulares (RegEx)
+
+# Entendiendo las Expresiones Regulares (RegEx)
 
 Las Expresiones Regulares (o RegEx) son secuencias de caracteres que definen un patrón de búsqueda. Son extremadamente potentes para buscar, validar y manipular texto.
 

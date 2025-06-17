@@ -1,11 +1,9 @@
 # Table of contents
 
 * [Introducción](00-introduccion/README.md)
-
   * [Acerca de esta Guía](00-introduccion/00a-acerca-de-esta-guia.md)
   * [Configuración del Entorno](00-introduccion/00b-configuracion-del-entorno.md)
 * [Fundamentos Esenciales](01-fundamentos-esenciales/README.md)
-
   * [Internet y Redes](01-fundamentos-esenciales/01a-internet-y-redes.md)
   * [Introducción a DNS](01-fundamentos-esenciales/01b-introduccion-a-dns.md)
   * [Puertos y Servicios Comunes](01-fundamentos-esenciales/01c-puertos-y-servicios-comunes.md)
@@ -14,7 +12,6 @@
   * [Patrones de Subdominios y Permutaciones](01-fundamentos-esenciales/01f-patrones-subs-y-permutaciones.md)
   * [Uso de /etc/hosts en Pentesting](01-fundamentos-esenciales/01g-uso-de-etc-hosts.md)
 * [Fase de Reconocimiento](02-fase-de-reconocimiento/README.md)
-
   * [Conceptos Clave y Anatomía de Dominio](02-fase-de-reconocimiento/02a-conceptos-clave.md)
   * [Reconocimiento Pasivo (OSINT)](02-fase-de-reconocimiento/02b-reconocimiento-pasivo.md)
     * [Técnica Profunda: Google Dorking](02-fase-de-reconocimiento/02b-1-google-dorking.md)
@@ -22,13 +19,16 @@
   * [Reconocimiento Activo](02-fase-de-reconocimiento/02c-reconocimiento-activo.md)
   * [Descubrimiento de Contenido Web](02-fase-de-reconocimiento/02d-descubrimiento-de-contenido-web.md)
     * [Técnica Profunda: Ficheros Sensibles Expuestos](02-fase-de-reconocimiento/02d-1-ficheros-sensibles.md)
-  * [Resumen de Herramientas](02-fase-de-reconocimiento/02e-resumen-de-herramientas.md)
+  * [Arsenal de Reconocimiento](02-fase-de-reconocimiento/02e-arsenal-de-reconocimiento/README.md)
+    * [subfinder](02-fase-de-reconocimiento/02e-arsenal-de-reconocimiento/subfinder.md)
+    * [httpx](02-fase-de-reconocimiento/02e-arsenal-de-reconocimiento/httpx.md)
+    * [massdns](02-fase-de-reconocimiento/02e-arsenal-de-reconocimiento/massdns.md)
+    * [shuffledns](02-fase-de-reconocimiento/02e-arsenal-de-reconocimiento/shuffledns.md)
+    * [dnsgen](02-fase-de-reconocimiento/02e-arsenal-de-reconocimiento/dnsgen.md)
 * [Descubrimiento y Fuzzing](03-descubrimiento-y-fuzzing/README.md)
-
   * [Fuzzing con ffuf](03-descubrimiento-y-fuzzing/03a-fuzzing-con-ffuf.md)
   * [Explotando Repositorios .git Expuestos](03-descubrimiento-y-fuzzing/03b-explotando-git-expuesto.md)
 * [Explotación de Vulnerabilidades Web](04-explotacion-web/README.md)
-
   * [Control de Acceso](04-explotacion-web/04a-control-de-acceso/README.md)
     * [IDOR (Insecure Direct Object References)](04-explotacion-web/04a-control-de-acceso/idor.md)
     * [CORS (Cross-Origin Resource Sharing)](04-explotacion-web/04a-control-de-acceso/cors.md)
@@ -42,10 +42,8 @@
     * [Explotación de PostMessage](04-explotacion-web/04c-ataques-al-cliente/postmessage.md)
   * [Redirecciones Inseguras](04-explotacion-web/04d-redirecciones-inseguras.md)
 * [Hacking de APIs](05-hacking-de-apis/README.md)
-
   * [Explotando Documentación Swagger y OpenAPI](05-hacking-de-apis/05a-explotando-swagger-openapi.md)
 * [ANEXOS](99-anexos/README.md)
-
-  * [Herramientas Auxiliares](99-anexos/99a-herramientas-auxiliares.md)
+  * [Herramientas Auxiliares (curl, Proxies, RegEx)](99-anexos/99a-herramientas-auxiliares.md)
   * [Chuletas Rápidas (Cheatsheets)](99-anexos/99b-chuletas-rapidas-cheatsheets/README.md)
     * [ffuf Cheatsheet](99-anexos/99b-chuletas-rapidas-cheatsheets/ffuf-cheatsheet.md)
