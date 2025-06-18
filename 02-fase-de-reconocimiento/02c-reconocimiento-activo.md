@@ -2,7 +2,7 @@
 
 A diferencia del reconocimiento pasivo, el **Reconocimiento Activo** implica interactuar directamente con la infraestructura del objetivo. Estas técnicas son más "ruidosas" (pueden ser detectadas por firewalls o sistemas de detección de intrusos), pero a cambio nos proporcionan información mucho más precisa y en tiempo real.
 
-> **⚠️ Advertencia si estas en un programa Bug Bo:** ¡Ojo con el scope del programa! El escaneo de puertos agresivo y otras técnicas activas pueden estar prohibidas o limitadas en algunos programas de Bug Bounty. Revisa siempre las reglas antes de lanzar cualquier herramienta de reconocimiento activo.
+> **⚠️ Advertencia si estas en un programa Bug Bounty:** ¡Ojo con el scope del programa! El escaneo de puertos agresivo y otras técnicas activas pueden estar prohibidas o limitadas en algunos programas de Bug Bounty. Revisa siempre las reglas antes de lanzar cualquier herramienta de reconocimiento activo.
 
 ---
 
@@ -46,6 +46,7 @@ Esta técnica permite identificar qué servicios se están ejecutando en los ser
 `nmap` es la navaja suiza para el escaneo de puertos.
 
 * **Escaneo Básico y Potente:** Detecta versiones y ejecuta scripts básicos.
+
   ```bash
   nmap -sV -sC -T4 <IP_o_HOST>
   ```
@@ -54,10 +55,12 @@ Esta técnica permite identificar qué servicios se están ejecutando en los ser
   * `-sC`: Ejecuta scripts de enumeración por defecto.
   * `-T4`: Acelera el escaneo (puede ser más detectable).
 * **Escaneo de Todos los Puertos TCP:** Para un análisis exhaustivo.
+
   ```bash
   nmap -p- <IP_o_HOST>
   ```
 * **Escaneo de Puertos UDP:** Más lento, pero puede revelar servicios DNS o SNMP.
+
   ```bash
   nmap -sU -p 53,161 <IP_o_HOST>
   ```
