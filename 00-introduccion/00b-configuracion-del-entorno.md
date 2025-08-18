@@ -105,16 +105,20 @@ Instala estas herramientas **dentro de tu máquina virtual Kali**.
 
 ## Paso 7 (Opcional): Personaliza tu Entorno con mis Dotfiles
 
-Mis "dotfiles" son mi configuración personal para la terminal. Si los instalas, tu entorno se verá y comportará como el mío.
+Mis **dotfiles** son mi configuración personal de terminal. Si los instalas, tu entorno será igual al mío.
 
-**➡️ Acción (dentro de tu máquina virtual Kali):**
+### ¿Qué contiene?
 
-```bash
+[](https://github.com/theoffsecgirl/dotfiles/tree/main#qu%C3%A9-contiene)
+
+* Configuración de **Zsh** (temas, alias, funciones, prompt)
+* Archivos de entorno para customizar workstations
+* Scripts útiles para hackers éticos y devs
+* Organización pensada para Windows 11 + WSL2 + Kali
+
+**➡️ Acción rápida (en tu Kali, WSL o cualquier terminal):**
+
+```
 # Clona el repositorio desde GitHub
 git clone https://github.com/theoffsecgirl/dotfiles.git
-
-# Entra en la nueva carpeta y ejecuta el script de instalación
-cd dotfiles
-# Consejo: Revisa siempre un script antes de ejecutarlo (ej. con 'cat install.sh')
-./install.sh
 ```
