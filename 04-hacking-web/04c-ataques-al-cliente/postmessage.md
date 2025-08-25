@@ -20,11 +20,10 @@ Antes de `postMessage`, intentar acceder al contenido de un `iframe` de un orige
   - Dominio (e.g., `ejemplo.com`, `sub.ejemplo.com`)
   - Puerto (e.g., `80` para HTTP, `443` para HTTPS, `8080` para desarrollo) Si cualquiera de estos tres componentes difiere entre dos ventanas, se consideran de orígenes distintos.
 - **Sintaxis de Envío (`targetWindow.postMessage`)**:
-- ```javascript
 
-  ```
-
+```
 targetWindow.postMessage(message, targetOrigin, [transfer]);
+```
 
 ```
 
