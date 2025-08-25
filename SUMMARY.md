@@ -50,12 +50,11 @@
   * [Explotando Documentación Swagger y OpenAPI](05-hacking-de-apis/05a-explotando-swagger-openapi.md)
 * [Hacking iOS](06-hacking-ios/README.md)
 
-  [Arquitectura de iOS](06-hacking-ios/06a-arquitectura-ios.md)
-
-  * [Análisis de Apps iOS](06-hacking-ios/06b-analisis-apps-ios.md)
-  * [Jailbreak y Seguridad en iOS](06-hacking-ios/06c-jailbreak-y-seguridad-ios.md)
-  * [Casos Prácticos y Exploits en iOS](06-hacking-ios/06d-casos-practicos-ios.md)
-  * [OWASP Mobile Top 10](06-hacking-ios/06e-owasp-mobile-top-10.md)
+  - [Arquitectura de iOS](06-hacking-ios/06a-arquitectura-ios.md)
+  - [Análisis de Apps iOS](06-hacking-ios/06b-analisis-apps-ios.md)
+  - [Jailbreak y Seguridad en iOS](06-hacking-ios/06c-jailbreak-y-seguridad-ios.md)
+  - [Casos Prácticos y Exploits en iOS](06-hacking-ios/06d-casos-practicos-ios.md)
+  - [OWASP Mobile Top 10](06-hacking-ios/06e-owasp-mobile-top-10.md)
 * [ANEXOS](99-anexos/README.md)
 
   * [Herramientas Auxiliares (curl, Proxies, RegEx)](99-anexos/99a-herramientas-auxiliares.md)
