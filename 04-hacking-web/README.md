@@ -1,4 +1,4 @@
-# Explotación de Vulnerabilidades Web
+# Hacking Web
 
 ¡Bienvenido/a al campo de batalla principal! En los capítulos anteriores aprendimos a encontrar nuestros objetivos; en este capítulo, aprenderemos a encontrar sus debilidades y a explotarlas.
 
@@ -26,5 +26,3 @@ Para abordar este vasto mundo, hemos organizado las vulnerabilidades en tres gra
   * **[Cross-Site Request Forgery (CSRF)](./04c-ataques-al-cliente/csrf.md):** Descubre cómo hacer que un usuario autenticado realice acciones en su nombre sin que se dé cuenta.
   * **[Explotación de PostMessage](./04c-ataques-al-cliente/postmessage.md):** Una técnica más avanzada para atacar la comunicación entre ventanas del navegador.
 * **[Redirecciones Inseguras](./04d-redirecciones-inseguras.md):** Analizaremos cómo se puede abusar de las redirecciones para dirigir a los usuarios a sitios maliciosos.
-
-¡Prepárate para la acción!
