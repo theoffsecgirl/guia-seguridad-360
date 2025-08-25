@@ -329,6 +329,3 @@ codesign -d --entitlements - MyApp
 - **Mantén actualizadas las herramientas** para detectar las últimas vulnerabilidades
 
 El análisis efectivo de apps iOS requiere paciencia, metodología y uso combinado de múltiples herramientas. Esta base te permitirá identificar vulnerabilidades tanto obvias como sutiles en aplicaciones iOS.
-]</span>
-
-<div style="text-align: center">⁂</div>
