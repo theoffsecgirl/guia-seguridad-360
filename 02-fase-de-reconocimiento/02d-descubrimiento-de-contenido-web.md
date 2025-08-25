@@ -54,5 +54,4 @@ Esta técnica consiste en tomar capturas de pantalla de un gran número de sitio
 
 Hemos visto las técnicas para encontrar contenido, pero ¿qué tipo de archivos son los más valiosos?
 
-> **➡️ Para una guía detallada sobre los tipos de archivos más valiosos que buscamos, consulta nuestra página dedicada: [Técnica Profunda: Ficheros Sensibles Expuestos](./02d-1-ficheros-sensibles.md)**
->
+> **Para una guía detallada sobre los tipos de archivos más valiosos que buscamos, consulta nuestra página dedicada: [Técnica Profunda: Ficheros Sensibles Expuestos](./02d-1-ficheros-sensibles.md)**
