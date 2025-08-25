@@ -62,10 +62,3 @@
   * [Herramientas Auxiliares (curl, Proxies, RegEx)](99-anexos/99a-herramientas-auxiliares.md)
   * [Chuletas Rápidas (Cheatsheets)](99-anexos/99b-chuletas-rapidas-cheatsheets/README.md)
     * [ffuf Cheatsheet](99-anexos/99b-chuletas-rapidas-cheatsheets/ffuf-cheatsheet.md)
-* [Hacking iOS](06-hacking-ios/README.md)
-
-  * [Arquitectura de iOS para Bug Bounty Hunting](06-hacking-ios/06a-arquitectura-ios.md)
-  * [Análisis de Apps iOS](06-hacking-ios/06b-analisis-apps-ios.md)
-  * [Jailbreak y Seguridad en iOS](06-hacking-ios/06c-jailbreak-y-seguridad-ios.md)
-  * [Casos Prácticos y Exploits en iOS](06-hacking-ios/06d-casos-practicos-ios.md)
-  * [OWASP Mobile Top 10 2024 para Bug Hunting](06-hacking-ios/06e-owasp-mobile-top-10.md)
