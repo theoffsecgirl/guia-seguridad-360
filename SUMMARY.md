@@ -44,6 +44,7 @@
     * [Cross-Site Scripting (XSS)](04-hacking-web/04c-ataques-al-cliente/xss.md)
     * [Cross-Site Request Forgery (CSRF)](04-hacking-web/04c-ataques-al-cliente/csrf.md)
     * [Explotación de PostMessage](04-hacking-web/04c-ataques-al-cliente/postmessage.md)
+    * [Explotación de Javascript](04-hacking-web\04c-ataques-al-cliente\explotacion-javascript.md)
   * [Redirecciones Inseguras](04-hacking-web/04d-redirecciones-inseguras.md)
 * [Hacking de APIs](05-hacking-de-apis/README.md)
 
