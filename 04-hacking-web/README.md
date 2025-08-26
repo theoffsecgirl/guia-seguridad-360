@@ -14,7 +14,7 @@ Para abordar este vasto mundo, hemos organizado las vulnerabilidades en tres gra
 
 ### Mapa de Vulnerabilidades
 
-* **[Control de Acceso](04-hacking-web\04a-control-de-acceso\README.md):** Exploraremos las formas de saltarnos las restricciones de permisos.
+* **[Control de Acceso](04a-control-de-acceso\README.md):** Exploraremos las formas de saltarnos las restricciones de permisos.
   * **[IDOR (Insecure Direct Object References)](04-hacking-web\04a-control-de-acceso\idor.md):** Aprende a acceder a recursos que no te pertenecen cambiando un simple número en la URL.
   * **[CORS (Cross-Origin Resource Sharing)](04-hacking-web\04a-control-de-acceso\cors.md):** Descubre cómo las malas configuraciones de CORS pueden permitir el robo de datos entre dominios.
 * **[Ataques al Servidor](04-hacking-web\04b-ataques-al-servidor\README.md):** Nos centraremos en las vulnerabilidades que comprometen la infraestructura del backend.
