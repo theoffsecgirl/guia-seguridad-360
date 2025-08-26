@@ -21,7 +21,7 @@ Para abordar este vasto mundo, hemos organizado las vulnerabilidades en tres gra
   * **[LFD y Path Traversal](04-hacking-web\04b-ataques-al-servidor\lfd-y-path-traversal.md):** Veremos cómo leer archivos locales del servidor a los que no deberíamos tener acceso.
   * **[Inyección SQL (SQLi)](04-hacking-web\04b-ataques-al-servidor\sqli.md):** La vulnerabilidad clásica para atacar y extraer información de bases de datos.
 * **[Ataques al Cliente](04-hacking-web\04c-ataques-al-cliente\README.md):** El objetivo aquí son los navegadores de otros usuarios de la aplicación.
-  * **[Cross-Site Scripting (XSS)](file:///./04c-ataques-al-cliente/xss.md):** Aprenderemos a inyectar JavaScript en el navegador de las víctimas.
-  * **[Cross-Site Request Forgery (CSRF)](./04c-ataques-al-cliente/csrf.md):** Descubre cómo hacer que un usuario autenticado realice acciones en su nombre sin que se dé cuenta.
-  * **[Explotación de PostMessage](./04c-ataques-al-cliente/postmessage.md):** Una técnica más avanzada para atacar la comunicación entre ventanas del navegador.
-* **[Redirecciones Inseguras](./04d-redirecciones-inseguras.md):** Analizaremos cómo se puede abusar de las redirecciones para dirigir a los usuarios a sitios maliciosos.
+  * **[Cross-Site Scripting (XSS)](04-hacking-web\04c-ataques-al-cliente\xss.md):** Aprenderemos a inyectar JavaScript en el navegador de las víctimas.
+  * **[Cross-Site Request Forgery (CSRF)](04-hacking-web\04c-ataques-al-cliente\csrf.md):** Descubre cómo hacer que un usuario autenticado realice acciones en su nombre sin que se dé cuenta.
+  * **[Explotación de PostMessage](04-hacking-web\04c-ataques-al-cliente\postmessage.md):** Una técnica más avanzada para atacar la comunicación entre ventanas del navegador.
+* **[Redirecciones Inseguras](04-hacking-web\04d-redirecciones-inseguras.md):** Analizaremos cómo se puede abusar de las redirecciones para dirigir a los usuarios a sitios maliciosos.
