@@ -42,7 +42,7 @@
 
     * [LFD y Path Traversal](04-hacking-web/04b-ataques-al-servidor/lfd-y-path-traversal.md)
     * [Inyección SQL (SQLi)](04-hacking-web/04b-ataques-al-servidor/sqli.md)
-    * [Redirecciones Inseguras](04-hacking-web/04b-ataques-al-servido/04d-redirecciones-inseguras.md)
+    * [Redirecciones Inseguras](04-hacking-web/04b-ataques-al-servidor/04d-redirecciones-inseguras.md)
   * [Ataques al Cliente](04-hacking-web/04c-ataques-al-cliente/README.md)
 
     * [Cross-Site Scripting (XSS)](04-hacking-web/04c-ataques-al-cliente/xss.md)
