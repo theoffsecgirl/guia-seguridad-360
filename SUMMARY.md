@@ -66,7 +66,3 @@
 
     * [Cheatsheet : ffuf (Fuzz Faster U Fool)](99-anexos/99b-chuletas-rapidas-cheatsheets/ffuf-cheatsheet.md)
     * [Cheatsheet: Nmap (Network Mapper)](99-anexos/99b-chuletas-rapidas-cheatsheets/ffuf-cheatsheet.md)
-
-    # Cheatsheet : ffuf (Fuzz Faster U Fool)
-
-    # Cheatsheet : ffuf (Fuzz Faster U Fool)
