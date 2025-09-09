@@ -1,4 +1,4 @@
-# SQL (Structured Query Language) y SQL Injection (SQLi) – Guía Completa
+# SQL (Structured Query Language) y SQL Injection (SQLi)
 
 SQL (Structured Query Language) es el estándar de facto para interactuar con bases de datos relacionales. Desde su primera especificación en 1986 por ANSI y su adopción por ISO en 1987, SQL ha evolucionado para incluir extensiones específicas de cada proveedor, pero mantiene su objetivo principal: definir y manipular datos de manera declarativa.
 

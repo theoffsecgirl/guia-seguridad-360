@@ -121,9 +121,8 @@ httpx -l hosts.txt -silent -ports 80,443,8080,8443 -path /,/login,/swagger.json 
 
 - Entrada masiva (hosts/URLs/CIDR), probes seleccionados, match/filter precisos y output JSON/CSV con respuestas guardadas cuando importe.[^1]
 - Encadenado con subfinder/naabu/nuclei permite pasar de lista teórica a superficie viva y priorizada en minutos con mínimo ruido.[^1]
-  <span style="display:none">[^11][^13][^15][^17][^6][^8][^9]</span>
+  <span style="display:none">[^13][^17][^8][^9]</span>
 
-<div style="text-align: center">Introducción a httpx</div>
 
 [^1]: https://docs.projectdiscovery.io/tools/httpx
     

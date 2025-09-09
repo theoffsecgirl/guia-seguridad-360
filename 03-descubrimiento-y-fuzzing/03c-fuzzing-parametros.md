@@ -103,8 +103,6 @@ ffuf -w /usr/share/seclists/Fuzzing/parameter-names.txt -u 'https://target.com/a
 - [Web Security Fuzzing with ffuf](https://www.freecodecamp.org/news/web-security-fuzz-web-applications-using-ffuf/)[^3]
 - [Bug bounty playbooks](https://www.kali.org/tools/ffuf/)[^4]
 
-<div style="text-align: center">Fuzzing de Parámetros</div>
-
 
 [^1]: https://hackviser.com/tactics/tools/ffuf
     

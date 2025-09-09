@@ -126,14 +126,14 @@ def test_idor_enumeration(base_url, auth_token, start_id=1, end_id=100):
   
         try:
             response = requests.get(url, headers=headers, timeout=10)
-      
+    
             if response.status_code == 200:
                 data = response.json()
                 # Verificar si contiene datos de otro usuario
                 if 'username' in data and data['username'] != 'current_user':
                     vulnerable_ids.append(user_id)
                     print(f"[+] IDOR encontrado: ID {user_id} - Usuario: {data.get('username')}")
-              
+            
         except requests.RequestException as e:
             print(f"[-] Error al probar ID {user_id}: {e}")
   
@@ -335,9 +335,6 @@ La aplicación permite acceso no autorizado a recursos de otros usuarios mediant
 ### Mitigación Recomendada
 
 Implementar verificación de autorización del lado del servidor para todos los accesos a recursos, validando que el usuario autenticado tiene permisos para el objeto específico solicitado.
-
-
-<div style="text-align: center">Referencias Inseguras Directas a Objetos (IDOR)</div>
 
 
 [^1]: https://portswigger.net/web-security/access-control/idor

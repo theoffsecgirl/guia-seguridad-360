@@ -89,9 +89,8 @@ Estas pruebas de bajo impacto permiten trazar métodos, estados y políticas ini
 - Infraestructura: ¿comportamientos distintos por proxy/balanceador que alteren parsing/caché? Documentar rutas y saltos.[^2]
 
 Si se desea, se puede añadir una tabla de mapeo método→propiedades (seguro, idempotente, cacheable) y plantillas de pruebas específicas por cabecera de seguridad.[^6]
-<span style="display:none">[^11][^13][^15][^17][^19][^21][^9]</span>
+<span style="display:none">[^13][^17][^21][^9]</span>
 
-<div style="text-align: center">HTTP y seguridad web</div>
 
 [^1]: https://developer.mozilla.org/en-US/docs/Web/HTTP
     

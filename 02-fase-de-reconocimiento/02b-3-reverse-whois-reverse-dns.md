@@ -86,9 +86,8 @@ Estas consultas no tocan aplicaciones del objetivo y sirven para construir el gr
 - No asumir propiedad solo por coincidencia de proveedor; requerir al menos dos evidencias independientes antes de atribuir un dominio a una organización.[^9]
 
 Con este módulo, el pivot entre contactos de registro e infraestructura de red queda sistematizado para ampliar el inventario sin generar tráfico hacia el objetivo, manteniendo trazabilidad y priorización orientadas a hallazgos accionables en fases activas.[^9]
-<span style="display:none">[^2][^4][^6][^8]</span>
+<span style="display:none">[^4][^8]</span>
 
-<div style="text-align: center">Reverse WHOIS y Reverse DNS</div>
 
 [^1]: https://whoisfreaks.com/resources/blog/mastering-whois-osint-for-effective-domain-and-ip-investigations
     

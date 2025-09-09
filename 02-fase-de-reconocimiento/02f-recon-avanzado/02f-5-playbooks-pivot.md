@@ -227,9 +227,8 @@ Puntúa alto si:
 - ¿Evidencias mínimas, timestamps y comandos guardados para reproducibilidad?
 
 ¿Quieres una versión “solo comandos” en un playbook separado para ejecutar por bloques y volcar CSVs/JSON listos para triaje?
-<span style="display:none">[^10][^3][^5][^7][^9]</span>
+<span style="display:none">[^3][^7][^9]</span>
 
-<div style="text-align: center">Playbooks de Pivot (host→IP→vecinos→buckets)</div>
 
 [^1]: https://www.youtube.com/watch?v=E4eUdAd6tAM
     

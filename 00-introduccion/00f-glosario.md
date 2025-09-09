@@ -156,9 +156,8 @@ Nota de uso
 - Preferir términos en inglés cuando sean estándar de la industria; añadir traducción si reduce ambigüedad.
 - Mantener coherencia de términos en reportes y mapear a categorías VRT/CVSS cuando corresponda.
 - Ampliar este glosario con términos de dominio específicos (fintech, health, telco) según targets frecuentes.
-  <span style="display:none">[^10][^3][^5][^7][^9]</span>
+  <span style="display:none">[^3][^7][^9]</span>
 
-<div style="text-align: center">Glosario</div>
 
 [^1]: https://www.youtube.com/watch?v=Sbf_zokpR1w
     

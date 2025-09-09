@@ -216,9 +216,7 @@ cat subs.txt | dnsgen - \
 Útil en timeboxes cortos centrados en superficie HTTP viva. [^6]
 
 Con esto queda una guía pragmática de dnsgen: instalación, uso correcto, pipelines robustos y heurísticas para aumentar cobertura sin inflar el ruido del recon. [^1]
-<span style="display:none">[^13][^17][^21][^9]</span>
-
-<div style="text-align: center">Introducción a dnsgen</div>
+<span style="display:none">[^17][^9]</span>
 
 
 [^1]: https://github.com/AlephNullSK/dnsgen

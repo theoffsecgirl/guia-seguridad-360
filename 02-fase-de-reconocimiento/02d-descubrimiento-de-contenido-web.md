@@ -111,9 +111,8 @@ Volcar endpoints a una lista para validación con httpx/ffuf en un siguiente pas
 ## Siguiente paso[^1]
 
 - Pasar a la técnica profunda de ficheros sensibles expuestos y validar inmediatamente hallazgos críticos con evidencia mínima, severidad estimada y mitigación clara.[^1]
-  <span style="display:none">[^11][^13][^15][^17][^19][^21][^8][^9]</span>
+  <span style="display:none">[^13][^17][^21][^9]</span>
 
-<div style="text-align: center">Descubrimiento de contenido web</div>
 
 [^1]: 02d-descubrimiento-de-contenido-web.md
     

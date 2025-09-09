@@ -34,7 +34,7 @@ Entender cómo nombran los equipos sus entornos y servicios permite predecir sub
 ## Flujo operativo recomendado
 
 1) Sembrado pasivo → Subfinder + CT logs → lista base de subdominios “reales” para extraer patrones de naming.[^12]
-2) Generación → dnsgen/gotator/altdns con wordlist corta curada por entorno/servicio/geo/versión; mantener profundidad y numeración moderadas para evitar explosión combinatoria.[^6][^8]
+2) Generación → dnsgen/gotator/altdns con wordlist corta curada por entorno/servicio/geo/versión; mantener profundidad y numeración moderadas para evitar explosión combinatoria.[^8]
 3) Resolución → resolver masivo con resolvers fiables y descarte de wildcard antes de HTTP probing para ahorrar peticiones.[^3]
 4) Probing HTTP → httpx para estados, títulos, tecnologías, HTTP/2 y TLS; priorizar dev/admin/APIs y puertos alternativos.[^15]
 5) Takeover check → Nuclei con plantillas http/takeovers para SaaS/CDN típicos y añadir plantillas propias si aparece un proveedor nuevo.[^2]
@@ -91,13 +91,12 @@ cut -d\" -f4 httpx_all.json | nuclei -t http/takeovers/ -silent
 ## Notas rápidas de herramienta
 
 - subfinder/httpx: instalación y ejecución directa con Go/Docker, buena base para pipelines con flags -silent/-json.[^18]
-- dnsgen/gotator/altdns: cubren permutación basada en subdominios existentes + “palabras” comunes, con control de duplicados y resolución integrada opcional.[^6][^4]
+- dnsgen/gotator/altdns: cubren permutación basada en subdominios existentes + “palabras” comunes, con control de duplicados y resolución integrada opcional.[^4]
 - Nuclei (takeovers): carpeta http/takeovers en el repositorio de plantillas de la comunidad; crear matchers nuevos cuando el proveedor no esté cubierto aún.[^16]
 
 ¿Quieres que deje también una plantilla “perm‑playbook.md” con bloques de comandos y listas base por vertical (fintech/health/telco) para tenerlo como macro reutilizable?[^19]
-<span style="display:none">[^21][^23][^25][^27][^29][^31][^33][^35][^37][^39][^41]</span>
+<span style="display:none">[^23][^27][^31][^35][^39][^41]</span>
 
-<div style="text-align: center">Patrones de subdominios y permutaciones</div>
 
 [^1]: 01f-patrones-subs-y-permutaciones.md
     

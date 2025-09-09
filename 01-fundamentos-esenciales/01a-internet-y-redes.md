@@ -183,9 +183,8 @@ while read d; do echo -n "$d "; dig +short A $d | head -n1; done < dominios.txt
 - No registrar rutas ni DNS al inicio (rompe reproducibilidad).
 
 Con esto, la nota queda robusta para una base de “Internet y Redes” adaptada a auditorías ofensivas y preparación de laboratorios sin ruido innecesario.
-<span style="display:none">[^10][^3][^5][^7][^9]</span>
+<span style="display:none">[^3][^7][^9]</span>
 
-<div style="text-align: center">Internet y redes (pentesting)</div>
 
 [^1]: https://es.wikipedia.org/wiki/World_Wide_Web
     

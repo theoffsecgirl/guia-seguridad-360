@@ -66,7 +66,7 @@ Señales
 
 ## Flujo mínimo de arranque (reproducible)[^1]
 
-- Paso 1 — WHOIS y CT: extraer registrador, NS y FQDN emitidos para sembrar lista base de dominios/subdominios y detectar proveedores terceros.[^4][^1]
+- Paso 1 — WHOIS y CT: extraer registrador, NS y FQDN emitidos para sembrar lista base de dominios/subdominios y detectar proveedores terceros.[^1]
 - Paso 2 — DNS: validar A/AAAA/MX/NS/SOA y +trace para confirmar autoridad y coherencia, anotando TTLs y posibles wildcard.[^1]
 - Paso 3 — Permutaciones: combinar patrones de entorno/servicio/geo sobre la lista base antes de pasar a resolución masiva y probing HTTP.[^1]
 
@@ -80,9 +80,8 @@ Señales
 
 - Mantener timebox y registrar comandos exactos con timestamps para reproducibilidad, evitando ruido y repeticiones en ciclos posteriores.[^1]
 - Respetar alcance y políticas de los programas antes de pasar de pasivo a activo, ajustando carga y tasa en pruebas de red/HTTP.[^1]
-  <span style="display:none">[^12][^14][^16][^18][^20][^21]</span>
+  <span style="display:none">[^14][^18][^21]</span>
 
-<div style="text-align: center">Conceptos clave y anatomía de dominio</div>
 
 [^1]: 02a-conceptos-clave.md
     

@@ -246,9 +246,7 @@ ffuf -w /usr/share/seclists/Discovery/Web-Content/common.txt \
 ---
 
 Recuerda: ffuf es tan poderosa como la wordlist y los filtros que le pongas. Testea, filtra y prioriza para descubrir lo que otros dejan pasar.[^1]
-<span style="display:none">[^14][^17]</span>
-
-<div style="text-align: center">Fuzzing con ffuf: Descubriendo lo Oculto</div>
+<span style="display:none">[^17]</span>
 
 
 [^1]: https://hackviser.com/tactics/tools/ffuf

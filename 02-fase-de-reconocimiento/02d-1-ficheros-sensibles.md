@@ -117,13 +117,12 @@ Cierre
 
 Referencias útiles
 
-- git-dumper y GitTools para volcado/extracción de .git.[^4][^5]
+- git-dumper y GitTools para volcado/extracción de .git.[^5]
 - feroxbuster para descubrimiento recursivo eficiente.[^15]
 - SecLists (Discovery/Web-Content) para wordlists de alta calidad.[^16]
 - wp-config.php: claves y estructura que justifican criticidad si quedan expuestas.[^8]
-  <span style="display:none">[^18][^20][^22][^24][^26][^28][^30][^32][^34][^36][^38][^40][^42]</span>
+  <span style="display:none">[^20][^24][^28][^32][^36][^40][^42]</span>
 
-<div style="text-align: center">Técnica profunda: ficheros sensibles expuestos</div>
 
 [^1]: 02d-1-ficheros-sensibles.md
     

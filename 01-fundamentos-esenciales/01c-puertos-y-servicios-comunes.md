@@ -84,9 +84,8 @@ nmap -sS -sV -sC -p22,80,445 -iL alive.txt -T3
 - Documentar puertos, protocolos, versiones y banners con timestamps y comandos exactos para reproducibilidad y posterior explotación controlada cuando aplique.[^8]
 
 Si quieres, añado una tabla extendida de puertos por vertical (web, correo, Windows/AD, bases de datos, VoIP, IoT) y plantillas Nmap/NSE por familia de servicios.[^4]
-<span style="display:none">[^18][^21]</span>
+<span style="display:none">[^21]</span>
 
-<div style="text-align: center">Puertos y servicios comunes</div>
 
 [^1]: https://arubanetworking.hpe.com/techdocs/AOS-S/16.10/ATMG/KB/content/kb/tcp-por-num-ran.htm
     

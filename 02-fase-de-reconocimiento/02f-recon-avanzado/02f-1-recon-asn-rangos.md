@@ -127,9 +127,8 @@ curl --resolve "admin.ejemplo.com:443:203.0.113.10" https://admin.ejemplo.com/ -
 - ¿Todo dentro de scope y con límites de tasa documentados?
 
 Si quieres, preparo una versión “sólo comandos” en 02f-1-recon-asn-rangos-playbook.md para pegar y ejecutar por bloques sin explicación.
-<span style="display:none">[^4][^7]</span>
+<span style="display:none">[^7]</span>
 
-<div style="text-align: center">Recon por ASN y Rangos IP</div>
 
 [^1]: https://www.creadpag.com/2025/04/explorando-el-asn-recon-profesional.html
     

@@ -169,9 +169,8 @@ subfinder -dL dominios.txt -oD resultados -nW -silent
 ```
 
 Con esto queda una guía operativa y actualizada de subfinder: desde instalación y claves a salidas ricas y encadenamientos que aceleran el triaje de superficies vivas en recon pasivo.[^5]
-<span style="display:none">[^11][^13][^15][^17][^19][^9]</span>
+<span style="display:none">[^13][^17][^9]</span>
 
-<div style="text-align: center">Introducción a subfinder</div>
 
 [^1]: https://docs.projectdiscovery.io/opensource/subfinder/overview
     

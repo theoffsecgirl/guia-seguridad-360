@@ -72,9 +72,8 @@ Este ejemplo devuelve paypalinc.com como ápex para listas rápidas, pero para p
 - Consultar %.dominio con output=json y normalizar name_value eliminando comodines y entradas repetidas antes de resolver.[^1]
 - Anotar first_seen/last_seen (cuando aparezcan) y CAs emisoras para detectar actividad reciente y proveedores/infra externas asociadas.[^1]
 - Volcar FQDN limpios a la siguiente etapa de resolución/probing y etiquetar candidatos a takeover por CNAME a terceros no reclamados.[^1]
-  <span style="display:none">[^11][^13][^15][^17][^19][^21][^9]</span>
+  <span style="display:none">[^13][^17][^21][^9]</span>
 
-<div style="text-align: center">Técnica profunda: Certificate Transparency</div>
 
 [^1]: https://groups.google.com/g/crtsh/c/sCpRljHP4dw
     

@@ -83,8 +83,6 @@ curl -s https://target.com/static/js/app.js.map -o app.js.map
 grep -E 'secret|token|api|key|todo|fixme' app.js.map
 ```
 
-<div style="text-align: center">Sourcemaps y Artefactos de Build</div>
-
 
 [^1]: https://www.freecodecamp.org/news/web-security-fuzz-web-applications-using-ffuf/
     

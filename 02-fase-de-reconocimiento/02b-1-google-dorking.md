@@ -70,9 +70,8 @@ Notas de sintaxis: no dejes espacios entre el operador y el valor (ej. site:ejem
 - Etiquetar cada hallazgo con categoría (archivo, panel, parámetro) y con “acción siguiente” (validar en activo, descartar, vigilar con after:).[^2]
 
 Con esto se obtiene un módulo de dorking pragmático: operadores que importan, plantillas accionables y flujo en pasivo listo para encadenar con recon activo sin perder tiempo ni violar alcance.[^1]
-<span style="display:none">[^11][^13][^15][^17][^19][^21]</span>
+<span style="display:none">[^13][^17][^21]</span>
 
-<div style="text-align: center">Técnica profunda: Google Dorking</div>
 
 [^1]: https://support.google.com/websearch/answer/35890?hl=en\&co=GENIE.Platform%3DDesktop
     

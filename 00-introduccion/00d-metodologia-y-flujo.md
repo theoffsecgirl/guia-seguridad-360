@@ -280,9 +280,8 @@ fecha,target,fase,accion,resultado,notas
 ---
 
 Con este flujo, cada ciclo produce un resultado binario útil: hallazgo reportable con evidencias completas, o descarte consciente con motivos claros y aprendizaje reutilizable.
-<span style="display:none">[^2][^4][^6][^8][^9]</span>
+<span style="display:none">[^4][^8][^9]</span>
 
-<div style="text-align: center">Metodología y Flujo</div>
 
 [^1]: https://achirou.com/la-mejor-manera-de-aprender-hacking-y-ciberseguridad/
     

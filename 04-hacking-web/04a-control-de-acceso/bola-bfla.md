@@ -173,30 +173,30 @@ class BOLABFLADetector:
         self.base_url = base_url
         self.auth_tokens = auth_tokens  # Dict: {"admin": "token1", "user": "token2"}
         self.vulnerable_endpoints = []
-    
+  
     def test_bola_patterns(self, endpoint_template, id_range=(1, 100)):
         """
         Detecta BOLA mediante enumeración de IDs
         """
         vulnerable = []
-    
+  
         for user_role, token in self.auth_tokens.items():
             headers = {'Authorization': f'Bearer {token}'}
-        
+      
             for obj_id in range(id_range, id_range[^50] + 1):
                 endpoint = endpoint_template.format(id=obj_id)
-            
+          
                 try:
                     response = requests.get(
                         f"{self.base_url}{endpoint}", 
                         headers=headers, 
                         timeout=5
                     )
-                
+              
                     # Detectar acceso exitoso a objetos no autorizados
                     if response.status_code == 200:
                         data = response.json() if response.headers.get('content-type', '').startswith('application/json') else response.text
-                    
+                  
                         # Heurística: detectar datos de otros usuarios
                         if self._is_unauthorized_data(data, user_role, obj_id):
                             vulnerable.append({
@@ -207,10 +207,10 @@ class BOLABFLADetector:
                                 'data_preview': str(data)[:200]
                             })
                             print(f"[+] BOLA encontrada: {user_role} accede a objeto {obj_id}")
-                        
+                      
                 except requests.RequestException as e:
                     continue
-                
+              
         return vulnerable
   
     def test_bfla_functions(self, admin_endpoints):
@@ -219,17 +219,17 @@ class BOLABFLADetector:
         """
         vulnerable = []
         normal_user_token = self.auth_tokens.get('user', '')
-    
+  
         if not normal_user_token:
             print("[-] No hay token de usuario normal para probar BFLA")
             return vulnerable
-        
+      
         headers = {'Authorization': f'Bearer {normal_user_token}'}
-    
+  
         for endpoint_info in admin_endpoints:
             endpoint = endpoint_info['path']
             methods = endpoint_info.get('methods', ['GET'])
-        
+      
             for method in methods:
                 try:
                     response = requests.request(
@@ -239,7 +239,7 @@ class BOLABFLADetector:
                         json={} if method in ['POST', 'PUT'] else None,
                         timeout=5
                     )
-                
+              
                     # Función administrativa ejecutada por usuario normal
                     if response.status_code in [200, 201, 202]:
                         vulnerable.append({
@@ -251,10 +251,10 @@ class BOLABFLADetector:
                             'response_preview': response.text[:200]
                         })
                         print(f"[+] BFLA encontrada: usuario normal ejecutó {method} {endpoint}")
-                    
+                  
                 except requests.RequestException:
                     continue
-                
+              
         return vulnerable
   
     async def test_race_conditions(self, endpoint, concurrent_requests=10):
@@ -262,7 +262,7 @@ class BOLABFLADetector:
         Detecta condiciones de carrera en validaciones de autorización
         """
         vulnerable = []
-    
+  
         async def make_concurrent_request(session, user_token, request_id):
             headers = {'Authorization': f'Bearer {user_token}'}
             async with session.get(f"{self.base_url}{endpoint}", headers=headers) as response:
@@ -271,23 +271,23 @@ class BOLABFLADetector:
                     'status_code': response.status,
                     'response_time': response.headers.get('X-Response-Time', 'N/A')
                 }
-    
+  
         # Probar con usuario normal
         user_token = self.auth_tokens.get('user', '')
         if not user_token:
             return vulnerable
-        
+      
         async with aiohttp.ClientSession() as session:
             tasks = []
             for i in range(concurrent_requests):
                 task = make_concurrent_request(session, user_token, i)
                 tasks.append(task)
-        
+      
             results = await asyncio.gather(*tasks, return_exceptions=True)
-        
+      
             # Analizar resultados para detectar bypasses por race condition
             successful_requests = [r for r in results if isinstance(r, dict) and r['status_code'] == 200]
-        
+      
             if successful_requests and len(successful_requests) > concurrent_requests * 0.1:
                 vulnerable.append({
                     'endpoint': endpoint,
@@ -296,7 +296,7 @@ class BOLABFLADetector:
                     'total_requests': concurrent_requests
                 })
                 print(f"[+] Race condition detectada en {endpoint}: {len(successful_requests)} éxitos de {concurrent_requests}")
-    
+  
         return vulnerable
   
     def test_graphql_bola(self, graphql_endpoint="/graphql"):
@@ -304,7 +304,7 @@ class BOLABFLADetector:
         Detecta BOLA específico en GraphQL
         """
         vulnerable = []
-    
+  
         # Queries de prueba con diferentes IDs de usuario
         test_queries = [
             'query { user(id: "1") { email, profile } }',
@@ -312,13 +312,13 @@ class BOLABFLADetector:
             'query { transaction(id: 1) { amount, user_id } }',
             'query { organization(id: 1) { name, users { email } } }'
         ]
-    
+  
         user_token = self.auth_tokens.get('user', '')
         headers = {
             'Authorization': f'Bearer {user_token}',
             'Content-Type': 'application/json'
         }
-    
+  
         for query in test_queries:
             try:
                 response = requests.post(
@@ -327,7 +327,7 @@ class BOLABFLADetector:
                     json={'query': query},
                     timeout=5
                 )
-            
+          
                 if response.status_code == 200:
                     data = response.json()
                     # Si no hay errores de autorización, podría ser BOLA
@@ -339,10 +339,10 @@ class BOLABFLADetector:
                             'response_data': str(data)[:200]
                         })
                         print(f"[+] GraphQL BOLA detectada con query: {query}")
-                    
+                  
             except requests.RequestException:
                 continue
-            
+          
         return vulnerable
   
     def _is_unauthorized_data(self, data, user_role, obj_id):
@@ -363,9 +363,9 @@ class BOLABFLADetector:
         Escaneo completo de BOLA y BFLA
         """
         print("[*] Iniciando escaneo comprehensivo BOLA/BFLA...")
-    
+  
         all_vulnerabilities = []
-    
+  
         # Test BOLA en endpoints comunes
         bola_templates = [
             '/api/user/{id}',
@@ -374,11 +374,11 @@ class BOLABFLADetector:
             '/api/message/{id}',
             '/api/transaction/{id}'
         ]
-    
+  
         for template in bola_templates:
             vulns = self.test_bola_patterns(template)
             all_vulnerabilities.extend(vulns)
-    
+  
         # Test BFLA en funciones administrativas
         admin_endpoints = [
             {'path': '/admin/users', 'methods': ['GET', 'DELETE']},
@@ -386,20 +386,20 @@ class BOLABFLADetector:
             {'path': '/api/admin/reports', 'methods': ['GET']},
             {'path': '/management/audit', 'methods': ['GET']}
         ]
-    
+  
         bfla_vulns = self.test_bfla_functions(admin_endpoints)
         all_vulnerabilities.extend(bfla_vulns)
-    
+  
         # Test GraphQL BOLA
         graphql_vulns = self.test_graphql_bola()
         all_vulnerabilities.extend(graphql_vulns)
-    
+  
         # Test race conditions
         sensitive_endpoints = ['/api/balance/transfer', '/api/user/upgrade']
         for endpoint in sensitive_endpoints:
             race_vulns = asyncio.run(self.test_race_conditions(endpoint))
             all_vulnerabilities.extend(race_vulns)
-    
+  
         print(f"[*] Escaneo completado. Encontradas {len(all_vulnerabilities)} vulnerabilidades")
         return all_vulnerabilities
 
@@ -449,7 +449,7 @@ async def race_condition_exploit():
             task = session.delete('/api/user/victim_id', 
                                 headers={'Authorization': 'Bearer user_token'})
             tasks.append(task)
-    
+  
         results = await asyncio.gather(*tasks)
         successful = [r for r in results if r.status == 200]
         print(f"Bypass exitoso en {len(successful)} requests")
@@ -672,10 +672,6 @@ La aplicación presenta fallas críticas de autorización que permiten acceso no
 ### Mitigación Recomendada
 
 Implementar validación obligatoria de autorización tanto a nivel de objeto (verificar ownership) como de función (verificar roles apropiados) antes de cada operación. Usar principio de menor privilegio y validación granular por recurso específico.
-
-]</span>
-
-<div style="text-align: center">Referencias Inseguras por Niveles: BOLA y BFLA</div>
 
 
 [^1]: https://www.cobalt.io/blog/a-deep-dive-into-broken-functionality-level-authorization-vulnerability-bfla

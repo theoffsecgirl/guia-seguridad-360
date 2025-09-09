@@ -89,8 +89,6 @@ Referencia interna: esta guía usa y extiende materiales formativos previos, ree
 
 - Seleccionar ruta principal/secundaria, fijar Hitos A/B/C y la certificación del Hito 1, y continuar en el capítulo de la ruta elegida siguiendo los playbooks operativos. [^1]
 
-<div style="text-align: center">Start Here: Elige tu carrera en ciberseguridad</div>
-
 
 [^1]: https://csrc.nist.gov/pubs/sp/800/181/r1/final
     

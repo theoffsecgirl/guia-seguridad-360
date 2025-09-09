@@ -109,9 +109,8 @@ dig $random.ejemplo.com +short
 - Riesgos detectados: wildcard erróneo, CNAME huérfanos, TTLs extremos, políticas de correo débiles (SPF “+all”, DMARC inexistente).
 
 Con esto tienes una “Introducción a DNS” compacta, accionable y orientada a hallazgos reales sin perder el rigor técnico.
-<span style="display:none">[^4][^7]</span>
+<span style="display:none">[^7]</span>
 
-<div style="text-align: center">Introducción a DNS</div>
 
 [^1]: https://medium.verylazytech.com/complete-guide-to-dns-and-dhcp-penetration-testing-fb4597e5d880
     

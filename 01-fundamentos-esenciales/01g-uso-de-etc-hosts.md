@@ -52,9 +52,8 @@ Este comando fuerza a cURL a conectar a 1.2.3.4 para ejemplo.com:443 sin editar 
 - Hacer copia de seguridad antes de editar: sudo cp /etc/hosts /etc/hosts.bak en Unix o guardar una copia del hosts en Windows.[^6]
 - Documentar entradas con comentarios y mantenerlas por proyecto para evitar conflictos y olvidos al cambiar de objetivo.[^6]
 - Recordar que HSTS/SNI y políticas de TLS pueden afectar pruebas si el certificado no coincide con el nombre presentado; en esos casos, preferir --resolve o overrides de Burp para mantener la semántica de nombre.[^9]
-  <span style="display:none">[^16][^18][^20][^22][^24][^26][^28][^30][^32][^34][^36][^38][^40][^41]</span>
+  <span style="display:none">[^18][^22][^26][^30][^34][^38][^41]</span>
 
-<div style="text-align: center">Uso de /etc/hosts</div>
 
 [^1]: https://man7.org/linux/man-pages/man5/nsswitch.conf.5.html
     

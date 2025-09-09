@@ -146,9 +146,8 @@ done < id_to_hosts.csv | tee cluster_triage.txt
 - ¿Evidencias y comandos registrados para reproducibilidad?
 
 Si lo deseas, se puede añadir una versión “solo comandos” en un playbook independiente para ejecutar por bloques y volcar CSVs listos para triaje.
-<span style="display:none">[^10][^3][^5][^7][^9]</span>
+<span style="display:none">[^3][^7][^9]</span>
 
-<div style="text-align: center">Correlación por Analytics/Ads IDs</div>
 
 [^1]: https://www.maximaformacion.es/blog-dat/que-es-la-correlacion-estadistica-y-como-interpretarla/
     

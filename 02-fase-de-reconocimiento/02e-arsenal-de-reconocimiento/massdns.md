@@ -96,7 +96,7 @@ jq -r 'select(.resp_type=="A") | .name' a.jsonl | sed 's/\.$//' | sort -u > vivo
 httpx -l vivos_dns.txt -silent -status-code -title -tech-detect -json -o httpx.json
 ```
 
-Este pipeline depura candidatos a subdominios con resolución efectiva y obtiene estado/título/tecnologías para priorizar con bajo ruido y evidencia reproducible.[^1][^2]
+Este pipeline depura candidatos a subdominios con resolución efectiva y obtiene estado/título/tecnologías para priorizar con bajo ruido y evidencia reproducible.[^2]
 
 ## Trucos útiles
 
@@ -120,9 +120,8 @@ Este pipeline depura candidatos a subdominios con resolución efectiva y obtiene
 
 - Conjunto de subdominios resueltos con evidencia mínima (registro/tipo/IP) listo para probing HTTP o escaneo selectivo, sin entries espurias por wildcard o resolvers defectuosos.[^1]
 - Scripts/mandatos y timestamps archivados para reproducibilidad, con resolvers utilizados y parámetros de concurrencia/interval documentados para futura auditoría.[^2]
-  <span style="display:none">[^12][^14][^16][^18][^20][^22]</span>
+  <span style="display:none">[^14][^18][^22]</span>
 
-<div style="text-align: center">Introducción a massdns</div>
 
 [^1]: massdns.md
     

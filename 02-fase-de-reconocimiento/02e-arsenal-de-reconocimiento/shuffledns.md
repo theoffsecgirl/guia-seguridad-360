@@ -115,9 +115,8 @@ shuffledns -d ejemplo.com -w wordlist.txt -r resolvers.txt -massdns /usr/bin/mas
 
 - Lista de subdominios válidos deduplicada y filtrada de wildcard, proveniente de bruteforce o resolución masiva, con comandos y parámetros documentados.[^2]
 - Pipeline reproducible hacia httpx u otra herramienta de probing con salida JSON/archivo organizada para triaje y siguientes pasos.[^2]
-  <span style="display:none">[^11][^13][^15][^17][^19][^21][^5][^7][^9]</span>
+  <span style="display:none">[^13][^17][^21][^7][^9]</span>
 
-<div style="text-align: center">Introducción a shuffledns</div>
 
 [^1]: https://github.com/projectdiscovery/shuffledns
     

@@ -141,9 +141,8 @@ done
 - ¿Consultados .well-known clave y extraídas rutas OIDC/móviles/políticas?
 - ¿Clusters y candidatos con títulos/login/API priorizados?
 - ¿Comandos y salidas guardadas (JSON/CSV) para reproducibilidad?
-  <span style="display:none">[^10][^3][^5][^7][^9]</span>
+  <span style="display:none">[^3][^7][^9]</span>
 
-<div style="text-align: center">TLS/HTTP2 Fingerprinting y .well-known</div>
 
 [^1]: https://www.scrapeless.com/en/blog/bypass-https2
     

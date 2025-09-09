@@ -102,9 +102,8 @@ Permite descubrir sitios virtuales no listados en DNS sirviendo desde la misma I
 ## Recordatorio de alcance
 
 Muchos programas aceptan enumeración y probing ligero, pero restringen barridos de puertos masivos y UDP; leer política y, ante duda, reducir tasa y limitar a hosts confirmados web.[^2]
-<span style="display:none">[^13][^15][^17][^19][^21][^23][^25][^26]</span>
+<span style="display:none">[^15][^19][^23][^26]</span>
 
-<div style="text-align: center">Reconocimiento activo: interactuando con el objetivo</div>
 
 [^1]: https://www.ceos3c.com/security/nmap-tutorial-series-1-nmap-basics/
     

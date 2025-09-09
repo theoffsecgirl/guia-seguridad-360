@@ -4,25 +4,25 @@ Limitar el reconocimiento a 80/443 es perder gran parte de la **superficie**: lo
 
 ## Más allá de 80/443
 
-- 80/443 siguen siendo críticos, pero microservicios, entornos de staging y herramientas de CI/CD suelen vivir en 3000, 4200, 5000, 8000, 8080, 8443, 8888, 9000, 5432, 27017, 6379, entre otros, y suelen presentar menor madurez de seguridad que el reverse proxy público.[^3][^1]
+- 80/443 siguen siendo críticos, pero microservicios, entornos de staging y herramientas de CI/CD suelen vivir en 3000, 4200, 5000, 8000, 8080, 8443, 8888, 9000, 5432, 27017, 6379, entre otros, y suelen presentar menor madurez de seguridad que el reverse proxy público.[^1]
 - En producción ideal, un reverse proxy o balanceador debería “tapar” todo salvo 443; en la práctica, una regla de firewall permisiva o un despliegue de dev “temporal” quedan expuestos y suelen convertirse en hallazgos de alto impacto por sí mismos.[^1]
 
 ## Tabla ofensiva de puertos alternativos
 
 
-| Puerto | Servicio/Tecnología típica        | Qué buscar (alto valor)                                                                                                                                                                                      |
-| :----- | :---------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 3000   | Dev servers Node.js (React/Express) | sourcemaps, endpoints de debug, CORS “*”, credenciales y secretos en JS; enumerar APIs de backend a partir del código cliente[^1].                                                                         |
-| 4200   | Dev server Angular                  | rutas y llamadas a API desde frontend, lógica de negocio en cliente y tokens en almacenamiento local[^1].                                                                                                    |
-| 5000   | Flask/Django dev, Docker internos   | Werkzeug Debug activo con consola remota (PIN reproducible) que deriva en RCE si es accesible o el PIN es recuperable desde ficheros legibles[^4][^5].                                                        |
-| 8000   | HTTP alternativo, django runserver  | listados de directorios, servidores simples “http.server”, APIs internas y artefactos de build expuestos[^1].                                                                                               |
-| 8080   | HTTP alternativo, proxies y Tomcat  | paneles admin con credenciales por defecto, apps Java con deserialización, proxys mal encadenados[^1].                                                                                                       |
-| 8443   | HTTPS alternativo                   | consolas empresariales (p. ej., devops) desactualizadas; validar TLS/ciphers y headers de seguridad[^1].                                                                                                      |
-| 8888   | Jupyter Notebook                    | si no exige token/contraseña o está enlazado a 0.0.0.0, ejecución arbitraria de código desde el navegador; por defecto se liga a 127.0.0.1:8888 pero muchos despliegues lo exponen indebidamente[^6][^7]. |
-| 9000   | SonarQube/Portainer/devtools        | accesos anónimos o credenciales por defecto, filtrado de código y findings reutilizables para pivotar[^1].                                                                                                  |
-| 5432   | PostgreSQL                          | servicio expuesto a Internet; probar credenciales por defecto y políticas de bind-address/host all[^3].                                                                                                      |
-| 27017  | MongoDB                             | exposición sin auth en versiones antiguas, fuga de colecciones completas[^3].                                                                                                                                |
-| 6379   | Redis                               | acceso sin contraseña, escritura de claves que pueden llevar a RCE o manipular sesiones[^3].                                                                                                                 |
+| Puerto | Servicio/Tecnología típica        | Qué buscar (alto valor)                                                                                                                                                                                  |
+| :----- | :---------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 3000   | Dev servers Node.js (React/Express) | sourcemaps, endpoints de debug, CORS “*”, credenciales y secretos en JS; enumerar APIs de backend a partir del código cliente[^1].                                                                     |
+| 4200   | Dev server Angular                  | rutas y llamadas a API desde frontend, lógica de negocio en cliente y tokens en almacenamiento local[^1].                                                                                                |
+| 5000   | Flask/Django dev, Docker internos   | Werkzeug Debug activo con consola remota (PIN reproducible) que deriva en RCE si es accesible o el PIN es recuperable desde ficheros legibles[^5].                                                        |
+| 8000   | HTTP alternativo, django runserver  | listados de directorios, servidores simples “http.server”, APIs internas y artefactos de build expuestos[^1].                                                                                           |
+| 8080   | HTTP alternativo, proxies y Tomcat  | paneles admin con credenciales por defecto, apps Java con deserialización, proxys mal encadenados[^1].                                                                                                   |
+| 8443   | HTTPS alternativo                   | consolas empresariales (p. ej., devops) desactualizadas; validar TLS/ciphers y headers de seguridad[^1].                                                                                                  |
+| 8888   | Jupyter Notebook                    | si no exige token/contraseña o está enlazado a 0.0.0.0, ejecución arbitraria de código desde el navegador; por defecto se liga a 127.0.0.1:8888 pero muchos despliegues lo exponen indebidamente[^7]. |
+| 9000   | SonarQube/Portainer/devtools        | accesos anónimos o credenciales por defecto, filtrado de código y findings reutilizables para pivotar[^1].                                                                                              |
+| 5432   | PostgreSQL                          | servicio expuesto a Internet; probar credenciales por defecto y políticas de bind-address/host all[^3].                                                                                                  |
+| 27017  | MongoDB                             | exposición sin auth en versiones antiguas, fuga de colecciones completas[^3].                                                                                                                            |
+| 6379   | Redis                               | acceso sin contraseña, escritura de claves que pueden llevar a RCE o manipular sesiones[^3].                                                                                                             |
 
 Nota: el listado general de puertos y asignaciones IANA ayuda a ampliar el barrido según señales de fingerprinting y vertical del objetivo.[^2]
 
@@ -30,7 +30,7 @@ Nota: el listado general de puertos y asignaciones IANA ayuda a ampliar el barri
 
 - Paso 1 — Descubrimiento de puertos: un escaneo SYN/CONNECT de alto rendimiento para obtener “qué está abierto” sin aún profundizar en servicios, priorizando top‑ports y un límite de tasa conservador para no romper políticas de los programas.[^1]
 - Paso 2 — Enumeración de servicios: para lo abierto, fingerprint y versión con una pasada más lenta y segura, activando scripts “safe” únicamente y capturando títulos HTTP/TLS y banners para priorizar rutas de explotación.[^1]
-- Paso 3 — Validación específica: comprobar comportamientos de debug (5000 Flask/Werkzeug), tokens/ACLs en 8888 Jupyter, credenciales por defecto o acceso anónimo en 8080/8443/9000, y exposición indebida en 5432/27017/6379.[^6][^1]
+- Paso 3 — Validación específica: comprobar comportamientos de debug (5000 Flask/Werkzeug), tokens/ACLs en 8888 Jupyter, credenciales por defecto o acceso anónimo en 8080/8443/9000, y exposición indebida en 5432/27017/6379.[^1]
 
 Cadena de comandos
 
@@ -64,8 +64,8 @@ nmap -sS -sV -sC -p 3000,4200,5000,8000,8080,8443,8888,9000,5432,27017,6379 -iL 
 
 ## Señales de alto impacto
 
-- 5000 Flask con Werkzeug Debug: consola interactiva tras PIN; el PIN puede derivarse si existen lecturas de ficheros y, por tanto, habilita RCE.[^4][^1]
-- 8888 Jupyter expuesto: si no exige token o está accesible desde Internet, equivale a ejecución arbitraria de código; por diseño debería ligarse a localhost y requerir autenticación/token.[^6][^1]
+- 5000 Flask con Werkzeug Debug: consola interactiva tras PIN; el PIN puede derivarse si existen lecturas de ficheros y, por tanto, habilita RCE.[^1]
+- 8888 Jupyter expuesto: si no exige token o está accesible desde Internet, equivale a ejecución arbitraria de código; por diseño debería ligarse a localhost y requerir autenticación/token.[^1]
 - 8080/8443 paneles admin: credenciales por defecto, versiones con CVEs conocidas y TLS/ciphers inseguros; combinar con enumeración de rutas y títulos para priorizar.[^1]
 - 5432/27017/6379 abiertos a Internet: casi siempre misconfiguración; probar acceso mínimo, listar bases/keys y recomendar cierre/bind interno.[^1]
 
@@ -77,11 +77,10 @@ nmap -sS -sV -sC -p 3000,4200,5000,8000,8080,8443,8888,9000,5432,27017,6379 -iL 
 ## Referencias útiles
 
 - Lista y rangos de puertos (IANA + listados comunes) para extender wordlists y detecciones.[^8]
-- Naabu (ProjectDiscovery): port‑scanner rápido con integración hacia nmap y control de tasa/top‑ports.[^13][^9]
+- Naabu (ProjectDiscovery): port‑scanner rápido con integración hacia nmap y control de tasa/top‑ports.[^9]
 - Riesgos específicos: Werkzeug Debug (RCE) y seguridad de Jupyter (token/localhost) para validar criticidad en 5000/8888.[^6]
-  <span style="display:none">[^15][^17][^19][^21][^23][^25][^26]</span>
+  <span style="display:none">[^17][^21][^25][^26]</span>
 
-<div style="text-align: center">Puertos alternativos y superficie real</div>
 
 [^1]: 01d-puertos-alternativos.md
     

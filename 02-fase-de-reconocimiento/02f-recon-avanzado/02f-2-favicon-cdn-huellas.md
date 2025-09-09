@@ -125,9 +125,8 @@ ffuf -w cluster.txt:URL -w endpoints.txt:EP -u URL/EP -mr "Login|Sign in|Swagger
 - ¿Se definió si se busca origen (y cómo) dentro de scope?
 - ¿Se priorizaron clusters por títulos/patrones y puertos alternativos?
 - ¿Comandos y evidencias mínimas registrados para reproducibilidad?
-  <span style="display:none">[^2][^4][^6][^8][^9]</span>
+  <span style="display:none">[^4][^8][^9]</span>
 
-<div style="text-align: center">Favicon Hash y huellas CDN/Edge</div>
 
 [^1]: https://learn.microsoft.com/es-es/microsoft-edge/web-platform/tracking-prevention
     

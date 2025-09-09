@@ -95,10 +95,6 @@ ffuf -w wordlist.txt -u 'https://target.com/FUZZ' -t 2 -p 0.6 \
   -ac -mr "flag|token|access" -mc 200,403,429 -o bypass_results.txt
 ```
 
-]
-
-<div style="text-align: center">Evasión de WAF y Rate Limit</div>
-
 
 [^1]: https://github.com/ffuf/ffuf
     
