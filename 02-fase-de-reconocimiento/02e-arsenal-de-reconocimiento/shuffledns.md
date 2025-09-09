@@ -1,73 +1,162 @@
-# Introducción a `shuffledns`
+# Introducción a shuffledns
 
-`shuffledns` es otra herramienta del arsenal de ProjectDiscovery, diseñada específicamente para **manejar la enumeración y resolución masiva de subdominios**. Su principal ventaja es que actúa como un "envoltorio" (wrapper) inteligente para `massdns`, simplificando el proceso de fuerza bruta, manejando la detección de subdominios wildcard, y permitiendo una fácil integración con otras herramientas.
+shuffledns es un wrapper de MassDNS escrito en Go para enumerar subdominios válidos mediante fuerza bruta activa y para resolver listas a escala, con detección inteligente de wildcard y soporte limpio de stdin/stdout para pipelines.[^1]
+Su fortaleza es simplificar la resolución masiva y el bruteforce sobre un dominio con listas grandes, delegando la velocidad a MassDNS y filtrando falsos positivos por wildcard.[^2]
 
-Es la herramienta a la que recurres cuando tienes una buena lista de palabras (wordlist) y quieres probarlas contra un dominio para ver cuáles existen.
+## Prerrequisitos[^1]
 
-### Prerrequisitos
+- MassDNS instalado y accesible en PATH o referenciado con -massdns, ya que shuffledns lo invoca por debajo para resolver a alta velocidad.[^1]
+- Lista de resolvers DNS fiable y fresca en un archivo (por ejemplo resolvers.txt), porque la calidad y estabilidad de las respuestas dependen de esos servidores.[^1]
+- Wordlist de subdominios para bruteforce (por ejemplo de SecLists) cuando se use el modo de fuerza bruta con -w.[^1]
 
-Para usar `shuffledns` de forma efectiva, necesitarás dos cosas:
+## Instalación[^2]
 
-1. **Una Wordlist de Subdominios:** Una lista de nombres de subdominios comunes para probar (e.g., `admin`, `api`, `dev`, `test`, `blog`). La colección de **SecLists** en GitHub es un recurso excelente para esto.
-2. **Una Lista de Resolvers DNS:** Un archivo de texto con una lista de servidores DNS públicos, válidos y rápidos. Esto es crucial para que `massdns` (que `shuffledns` usa por debajo) pueda hacer las consultas de forma masiva y fiable.
-
-### Uso Básico y Opciones Clave
-
-El comando que propones es un excelente ejemplo de un uso estándar para la fuerza bruta. Vamos a desglosarlo.
-
-**Comando Principal de Fuerza Bruta:**
+- Binario precompilado desde Releases: descargar, extraer y mover al PATH.[^3]
 
 ```bash
-shuffledns -d ejemplo.com -w subdominios_wordlist.txt -r resolvers.txt -m /ruta/a/massdns --silent
+tar -xzvf shuffledns-linux-amd64.tar && sudo mv shuffledns-linux-amd64 /usr/local/bin/shuffledns && shuffledns -h
 ```
 
-**Desglose de las Opciones (Flags):**
-
-- **`-d ejemplo.com`**: Especifica el dominio objetivo (`-domain`) contra el que se realizará la fuerza bruta. `shuffledns` probará `palabra.ejemplo.com` para cada "palabra" en tu wordlist.
-- **`-w subdominios_wordlist.txt`**: La lista de palabras (`-wordlist`) que se usará para generar los subdominios a probar.
-- **`-r resolvers.txt`**: El archivo (`-resolvers`) que contiene la lista de servidores DNS públicos.
-- **`-m /ruta/a/massdns`**: (Opcional si `massdns` está en tu PATH) La ruta (`-massdns`) al binario de `massdns`. `shuffledns` lo necesita para funcionar.
-- **`--silent`**: Modo silencioso, para obtener una salida limpia solo con los subdominios válidos encontrados.
-
-### Integración en un Flujo de Trabajo
-
-La verdadera potencia de estas herramientas se ve al encadenarlas (`piping`). Una vez que `shuffledns` encuentra subdominios válidos, lo más lógico es pasarlos a `httpx` para ver cuáles tienen un servidor web activo.
+- Compilación con Go: requiere Go reciente y compila el comando desde el repositorio.[^2]
 
 ```bash
-shuffledns -d ejemplo.com -w wordlist.txt -r resolvers.txt --silent | httpx -title -sc -tech-detect --silent
+GO111MODULE=on go install -v github.com/projectdiscovery/shuffledns/cmd/shuffledns@latest
 ```
 
-Este comando:
+## Modos de uso[^2]
 
-1. Realiza la fuerza bruta de subdominios para `ejemplo.com` con `shuffledns`.
-2. La salida (los subdominios que existen) se pasa directamente (`|`) a `httpx`.
-3. `httpx` comprueba cada subdominio y, si tiene un servidor web, muestra su título, código de estado y tecnologías detectadas.
+shuffledns opera en dos modos principales: “resolve” (resolver una lista existente) y “bruteforce” (generar y resolver permutaciones a partir de una wordlist).[^2]
 
-### Aclaración sobre el Targeting de Subdominios Específicos
-
-En tu ejemplo ponías: `shuffledns ... *.dev.site.com`. Hay que tener cuidado aquí. `shuffledns` en su modo de fuerza bruta (`-w`) no acepta un patrón como `*.dev.site.com` como dominio `-d`. El flag `-d` espera un dominio raíz sobre el que construir las permutaciones (e.g., `dev.site.com`).
-
-Si quisieras hacer fuerza bruta sobre un subdominio de tercer nivel como `dev.site.com`, el comando sería:
+- Resolve (lista → válidos)
 
 ```bash
-# Probará cosas como api.dev.site.com, test.dev.site.com, etc.
-shuffledns -d dev.site.com -w wordlist.txt -r resolvers.txt --silent
+# Lista en archivo y resolvers
+shuffledns -d ejemplo.com -list subdomains.txt -r resolvers.txt -o validos.txt
+# O por stdin encadenado a subfinder (pasivo → resolve)
+subfinder -d ejemplo.com -silent | shuffledns -d ejemplo.com -r resolvers.txt -silent -o validos.txt
 ```
 
-Si lo que buscas es generar permutaciones más complejas, normalmente usarías otra herramienta como `gotator` o un script para generar la lista de posibles subdominios y luego pasar esa lista a `shuffledns` en modo de resolución (sin el flag `-w`).
-
-### Organización: Guardando los Resultados
-
-Como bien apuntas, ser organizado es clave para no volverse loco. Es una práctica excelente crear un directorio para cada objetivo y guardar ahí todos los resultados.
-
-Puedes usar el flag `-o` para especificar un archivo de salida:
+- Bruteforce (wordlist → válidos)
 
 ```bash
-# Crear un directorio para el objetivo
-mkdir ejemplo.com
-
-# Ejecutar el escaneo y guardar la salida en un archivo dentro de ese directorio
-shuffledns -d ejemplo.com -w wordlist.txt -r resolvers.txt --silent -o ejemplo.com/shuffledns_output.txt
+shuffledns -d ejemplo.com -w subdominios_wordlist.txt -r resolvers.txt -silent -o bruteforce.txt
 ```
 
-De esta forma, mantienes todos tus hallazgos de un mismo programa de bug bounty bien ordenados y localizables.
+Notas de targeting: el flag -d espera el dominio base sobre el que construir los nombres, por lo que para probar api.dev.site.com se debe pasar -d dev.site.com y una wordlist que genere api.dev.site.com, no un patrón *.dev.site.com.[^2]
+
+## Flags útiles y comportamiento[^2]
+
+- -d dominio, -w wordlist, -list archivo, -r resolvers, -o salida para los parámetros básicos de dominio, entradas, resolvers y archivo de resultados.[^2]
+- -massdns /ruta/al/binario para indicar una ruta específica del binario MassDNS si no está en PATH.[^2]
+- -retries N para controlar reintentos de consultas DNS en caso de fallos transitorios en resolvers.[^2]
+- -silent para suprimir banners y logs no esenciales y obtener una salida limpia solo con subdominios válidos.[^2]
+- -directory DIR para indicar un directorio temporal de trabajo si se requiere controlar espacio o rutas en entornos específicos.[^2]
+
+## Manejo de wildcard (multi‑nivel)[^2]
+
+shuffledns detecta y filtra wildcard contando cuántos subdominios nuevos apuntan a la misma IP y, al superar umbrales, verifica comodines iterativamente por niveles del host para evitar inflar resultados válidos con coincidencias falsas.[^2]
+La versión v1.1.0 añadió filtrado de wildcard multi‑dominio, lo que mejora el rendimiento y la precisión cuando se procesan varios dominios en una misma ejecución.[^3]
+
+## Pipelines recomendados[^2]
+
+- Pasivo → resolve → HTTP probing
+
+```bash
+subfinder -d ejemplo.com -silent \
+| shuffledns -d ejemplo.com -r resolvers.txt -silent \
+| httpx -silent -status-code -title -tech-detect -json -o httpx.json
+```
+
+- Bruteforce focalizado → probing
+
+```bash
+shuffledns -d ejemplo.com -w wordlist.txt -r resolvers.txt -silent \
+| httpx -silent -status-code -title -tech-detect -o vivos.txt
+```
+
+- Permutaciones previas → resolve
+
+```bash
+# Generar permutaciones con la herramienta preferida y resolver con shuffledns
+gotator -sub base.txt -perm perms.txt -depth 1 -numbers 10 -mindup -adv -md > perm.txt
+shuffledns -d ejemplo.com -list perm.txt -r resolvers.txt -silent -o validos_perm.txt
+```
+
+## Buenas prácticas[^1]
+
+- Usar resolvers frescos y estables para minimizar SERVFAIL y respuestas envenenadas, ya que el rendimiento real depende de la salud de esos servidores.[^1]
+- Mantener wordlists razonables y segmentadas por caso (admin/api/dev/geo) para reducir ruido en bruteforce y acelerar validación posterior.[^1]
+- Encadenar con httpx y guardar salidas en JSON cuando se requiera triage a escala y reproducibilidad de evidencias.[^2]
+
+## Ejemplos adicionales[^2]
+
+- Resolve con stdin desde subfinder y salida a httprobe/httpx posteriormente para validación HTTP.[^2]
+
+```bash
+echo ejemplo.com | subfinder -silent \
+| shuffledns -d ejemplo.com -r resolvers.txt -silent \
+| httpx -silent -status-code -title
+```
+
+- Especificar MassDNS explícito si no está en PATH y volcar a archivo.[^2]
+
+```bash
+shuffledns -d ejemplo.com -w wordlist.txt -r resolvers.txt -massdns /usr/bin/massdns -o salida.txt
+```
+
+## Checklist rápido[^1]
+
+- ¿MassDNS instalado y ruta valida (-massdns) si no está en PATH, y resolvers frescos cargados (-r resolvers.txt)?[^1]
+- ¿Modo correcto elegido (bruteforce con -w, resolve con -list o stdin) y -silent para salida limpia en pipelines?[^2]
+- ¿Wildcard gestionado implícitamente por shuffledns y verificado cuando el volumen de subdominios por IP indica comodín?[^2]
+- ¿Resultados encadenados a httpx para estado/título/tecnologías y priorización efectiva de superficie viva?[^2]
+
+## Definition of Done (DoD)[^2]
+
+- Lista de subdominios válidos deduplicada y filtrada de wildcard, proveniente de bruteforce o resolución masiva, con comandos y parámetros documentados.[^2]
+- Pipeline reproducible hacia httpx u otra herramienta de probing con salida JSON/archivo organizada para triaje y siguientes pasos.[^2]
+  <span style="display:none">[^11][^13][^15][^17][^19][^21][^5][^7][^9]</span>
+
+<div style="text-align: center">Introducción a shuffledns</div>
+
+[^1]: https://github.com/projectdiscovery/shuffledns
+    
+[^2]: https://pkg.go.dev/github.com/0xJeti/shuffledns
+    
+[^3]: https://github.com/projectdiscovery/shuffledns/releases
+    
+[^4]: shuffledns.md
+    
+[^5]: https://github.com/projectdiscovery/shuffledns/actions
+    
+[^6]: https://github.com/projectdiscovery/shuffledns/activity
+    
+[^7]: https://offsec.tools/tool/shuffledns
+    
+[^8]: https://pkg.go.dev/github.com/d3mondev/puredns/v2
+    
+[^9]: https://github.com/projectdiscovery/shuffledns/discussions
+    
+[^10]: https://docs.projectdiscovery.io/opensource
+    
+[^11]: https://www.youtube.com/watch?v=UXcE_lOEVjM
+    
+[^12]: https://deps.dev/project/github/projectdiscovery%2Fshuffledns
+    
+[^13]: https://www.youtube.com/watch?v=9S5Dmlc4Wpg
+    
+[^14]: https://sidxparab.gitbook.io/subdomain-enumeration-guide/active-enumeration/dns-bruteforcing
+    
+[^15]: https://github.com/projectdiscovery
+    
+[^16]: https://pentestguy.com/subdomain-enumeration-a-complete-guide/
+    
+[^17]: https://nirajkharel.com.np/posts/web-pentest-recon/
+    
+[^18]: https://github.com/projectdiscovery/shuffledns/issues
+    
+[^19]: https://rashahacks.com/guide-to-permutations-subdomain-enumeration/
+    
+[^20]: https://notes.m4lwhere.org/offensive/recon/dns/domain-discovery
+    
+[^21]: https://davidtancredi.gitbook.io/pentesting-notes/r3dcl1ff/tools/shuffledns

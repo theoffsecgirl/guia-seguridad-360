@@ -1,87 +1,162 @@
-# Introducción a `httpx`
+# Introducción a httpx
 
-`httpx` es un toolkit HTTP rápido y multifuncional desarrollado por el equipo de ProjectDiscovery. Su principal función en la fase de reconocimiento es tomar una lista de dominios o subdominios y **probar (probe) cuáles tienen un servidor web activo**, para luego extraer una gran cantidad de información útil sobre ellos.
+httpx es un toolkit HTTP rápido y multi‑propósito para “probar” hosts/URLs/CIDR a escala, extrayendo estado, títulos, tecnologías, hashes y metadatos útiles; mantiene fiabilidad con alto paralelismo y retrocede de HTTPS a HTTP de forma inteligente salvo que se indique lo contrario.[^3]
 
-Es la herramienta perfecta para "filtrar" las enormes listas de subdominios que obtienes de herramientas como `subfinder` o `amass`, permitiéndote centrarte solo en los activos que están realmente vivos y tienen una superficie de ataque web.
+## Instalación y ejecución[^4]
 
-### Flujo de Trabajo Común
-
-`httpx` está diseñado para funcionar perfectamente con la entrada estándar (`stdin`), lo que lo hace ideal para encadenar comandos en la terminal.
-
-**Uso básico (leyendo de un archivo):**
+- Go (recomendado):
 
 ```bash
-httpx -l lista_de_subdominios.txt
+go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest
+httpx -h
 ```
 
-**Uso encadenado (workflow típico):**
+- Docker oficial:
 
 ```bash
-# La salida de subfinder se pasa directamente a httpx
+docker run -it --rm projectdiscovery/httpx -h
+```
+
+## Uso básico y flujos típicos[^5]
+
+- Leer de archivo o stdin y sacar hosts vivos:
+
+```bash
+httpx -l lista_de_subdominios.txt -silent
+# o encadenado:
 subfinder -d ejemplo.com -silent | httpx -silent
 ```
 
-### Análisis de un Comando Completo para Recopilación de Información
-
-El siguiente comando es un ejemplo muy completo y práctico de cómo usar `httpx` para recopilar una gran cantidad de información de una lista de subdominios.
-
-**Comando de Ejemplo:**
+- Recopilación “rica” en una pasada:
 
 ```bash
-httpx -l lista.txt -cl -sc -location -favicon -title -tech-detect -ip -ports 80,443,8080,8000 -probe-all-ips -follow-redirects -o lista-httpx.txt
+httpx -l lista.txt -status-code -content-length -location -favicon -title -tech-detect -ip -ports 80,443,8080,8000 -probe-all-ips -follow-redirects -o salida.txt
 ```
 
-**Desglose de las Opciones (Flags):**
+Notas
 
-- **`-l lista.txt`**:
-  - Especifica el archivo de entrada (`-list`) que contiene la lista de hosts (dominios/subdominios) a probar, uno por línea.
-- **`-cl`**:
-  - Muestra el tamaño de la respuesta (`Content-Length`) en la salida. Útil para identificar rápidamente páginas vacías o de tamaños anómalos.
-- **`-sc`**:
-  - Muestra el código de estado HTTP (`Status Code`) de la respuesta (e.g., `200`, `302`, `403`, `404`).
-- **`-location`**:
-  - Si la respuesta es una redirección (3xx), muestra la URL a la que redirige (el valor de la cabecera `Location`).
-- **`-favicon`**:
-  - Descarga el favicon.ico de la página y calcula su hash (mmh3). Es extremadamente útil para el fingerprinting, ya que muchas plataformas (Jira, Confluence, etc.) usan favicons por defecto. Puedes buscar estos hashes en bases de datos online o en tus propios registros para identificar tecnologías.
-- **`-title`**:
-  - Extrae y muestra el contenido de la etiqueta `<title>` de la página HTML. Te da una idea rápida del propósito de la página. (Corregido de "tittle" a "title").
-- **`-tech-detect`**:
-  - Intenta detectar las tecnologías web utilizadas en el host (servidor web, frameworks, librerías JavaScript, CMS, etc.).
-- **`-ip`**:
-  - Muestra la dirección o direcciones IP a las que resuelve el host.
-- **`-ports 80,443,8080,8000`**:
-  - Especifica una lista de puertos a probar en cada host. Por defecto, `httpx` prueba puertos comunes (como 80 y 443), pero con esto puedes ampliar la búsqueda.
-- **`-probe-all-ips`**:
-  - Si un dominio resuelve a múltiples direcciones IP, `httpx` probará todas ellas en lugar de detenerse en la primera que responda.
-- **`-follow-redirects`**:
-  - Sigue las redirecciones HTTP y muestra la información de la página final.
-- **`-o lista-httpx.txt`**:
-  - Guarda la salida (`-output`) en el archivo especificado (`lista-httpx.txt`).
+- httpx acepta hosts, URLs y CIDR como entrada y puede probar múltiples puertos y rutas por host en la misma ejecución.[^3]
 
-### Otras Opciones Útiles que Debes Conocer
+## Probes y metadatos útiles[^3]
 
-- **`-silent`**: Modo silencioso. Elimina el banner de inicio y otra información de estado, mostrando solo los resultados. Imprescindible para encadenar comandos y para salidas limpias.
-- **`-threads <numero>`**: Ajusta el número de hilos concurrentes para aumentar o disminuir la velocidad del escaneo.
-- **`-vhost`**: Indica si el host es un host virtual. Puede ayudar a identificar si un mismo servidor aloja múltiples sitios web.
-- **`-path <ruta>`**: Permite probar una ruta específica en todos los hosts de la lista (e.g., `-path /admin.php`).
-- **`-x <metodo>`**: Permite probar métodos HTTP específicos (e.g., `-x GET,POST,OPTIONS`).
-- **`-json`**: Guarda la salida en formato JSON, que es ideal para ser procesada posteriormente por otros scripts o herramientas.
-- **`-H "Header: Value"`**: Permite añadir cabeceras personalizadas a las peticiones.
-- **`-status-code` y `-content-length`**: Son los nombres completos de `-sc` y `-cl`.
-- **`-tls-probe`**: Fuerza a probar el puerto TLS (HTTPS) y extraer datos del certificado si es posible.
-- **`-csp-probe`**: Extrae la cabecera Content-Security-Policy.
-- **`-cname`**: Extrae los registros CNAME del host.
+- Estado/códigos y tamaño: -status-code, -content-length, -content-type.[^3]
+- Redirecciones y destino: -location y -follow-redirects (con -max-redirects).[^3]
+- Título y servidor: -title, -web-server.[^3]
+- Tecnologías (Wappalyzer): -tech-detect.[^3]
+- Favicon mmh3: -favicon para clustering por hash.[^3]
+- TLS/cert y JARM: -tls-grab, -jarm, -tls-probe.[^3]
+- IP, CNAME, ASN, CDN: -ip, -cname, -asn, -cdn para mapear proveedores/edge.[^3]
+- HTTP/2, pipeline y vhost: -http2, -pipeline, -vhost.[^3]
+- Paths y puertos: -path /ruta o -path rutas.txt, -ports http:1,2-10,https:443.[^3]
 
-### Ejemplo de Workflow Integrado
+## Matchers, filtros y extracción[^3]
 
-El verdadero poder se ve al encadenar herramientas. Este es el flujo de trabajo básico que usarás una y otra vez en bug bounty:
+- Match por código/tamaño/cadenas/regex/hash/favicon: -mc/-ml/-ms/-mr/-mfc.[^3]
+- Filter por códigos, error‑pages, duplicados, CDN, tiempos, DSL: -fc/-fep/-fd/-fcdn/-frt/-fdc.[^3]
+- Extract regex y presets (ipv4, mail, url): -er/-ep para sacar datos del body sin herramientas extra.[^3]
+
+## Output y almacenamiento[^3]
+
+- Texto: -o salida.txt.[^3]
+- JSONL: -json con opciones para incluir cabeceras/requests/bodies (-irh/-irr/-irrb) y cadenas de redirección (-include-chain).[^3]
+- CSV: -csv con -csvo para codificación.[^3]
+- Respuestas completas: -store-response y -store-response-dir para guardar cuerpo/cadena (-store-chain) y clusters visuales (-svrc con -ss).[^3]
+
+## Concurrencia y límites de tasa[^3]
+
+- Concurrencia: -threads N (por defecto 50).[^3]
+- Rate limit: -rate-limit N (segundos) o -rate-limit-minute N.[^3]
+- Retries/timeout/delay: -retries, -timeout, -delay 200ms|1s. [^3]
+- Evitar fallback HTTP/HTTPS doble: -no-fallback o -no-fallback-scheme.[^3]
+
+## Ajustes de entorno y cabeceras[^3]
+
+- Random User‑Agent: -random-agent (por defecto true).[^3]
+- Cabeceras personalizadas: -H 'Header: Value' múltiples veces.[^3]
+- Proxy y SNI: -proxy http://127.0.0.1:8080, -sni nombre.[^3]
+- Respecto HSTS y redirecciones: -rhsts, -follow-host-redirects.[^3]
+
+## Ejemplos prácticos (copiar/pegar)[^5]
+
+- Subfinder → httpx con fingerprint mínimo:
 
 ```bash
-# 1. Descubrir subdominios con subfinder
-# 2. Filtrar los que están vivos y recopilar info con httpx
-# 3. Guardar el resultado en un archivo
-
-subfinder -d ejemplo.com -silent -all | httpx -silent -title -sc -tech-detect -o hosts_vivos_ejemplo.com.txt
+subfinder -d ejemplo.com -silent -all \
+| httpx -silent -status-code -title -tech-detect -json -o httpx.json
 ```
 
-Este simple one-liner te da una lista limpia de subdominios activos con su título, código de estado y tecnologías detectadas, lista para empezar a analizar más a fondo.
+- Favicon clustering y extracción de hashes:
+
+```bash
+httpx -l hosts.txt -silent -favicon -json -o fav.json
+jq -r 'select(.favicon_hash!=null) | "\(.favicon_hash) \(.url)"' fav.json | sort -u
+```
+
+- Detección de CDN y CNAME en una pasada:
+
+```bash
+httpx -l hosts.txt -silent -status-code -title -ip -cname -cdn -json -o meta.json
+```
+
+- HTTP/2 y TLS/cert para huellas:
+
+```bash
+httpx -l hosts.txt -silent -http2 -tls-grab -jarm -json -o tls_h2.json
+```
+
+- Paths y puertos alternativos con límites de tasa:
+
+```bash
+httpx -l hosts.txt -silent -ports 80,443,8080,8443 -path /,/login,/swagger.json -rate-limit 200 -json -o probe.json
+```
+
+## Buenas prácticas[^2]
+
+- Empezar con -silent y salida JSON para triage reproducible y fácil de filtrar con jq/grep/awk.[^2]
+- Ajustar -threads/-rate-limit según políticas del programa y respuestas del edge/WAF; usar -fep para quitar páginas de error.[^3]
+- Usar -probe-all-ips cuando existan múltiples A/AAAA para el mismo host (Anycast/Geo) y evitar falsos negativos.[^3]
+- Conservar -store-response de casos interesantes para evidencias y análisis offline; redactar datos sensibles si se incluyen en reportes.[^3]
+
+## Resumen operativo[^1]
+
+- Entrada masiva (hosts/URLs/CIDR), probes seleccionados, match/filter precisos y output JSON/CSV con respuestas guardadas cuando importe.[^1]
+- Encadenado con subfinder/naabu/nuclei permite pasar de lista teórica a superficie viva y priorizada en minutos con mínimo ruido.[^1]
+  <span style="display:none">[^11][^13][^15][^17][^6][^8][^9]</span>
+
+<div style="text-align: center">Introducción a httpx</div>
+
+[^1]: https://docs.projectdiscovery.io/tools/httpx
+    
+[^2]: https://github.com/projectdiscovery/httpx
+    
+[^3]: https://docs.projectdiscovery.io/tools/httpx/usage
+    
+[^4]: https://docs.projectdiscovery.io/opensource/httpx/install
+    
+[^5]: https://docs.projectdiscovery.io/tools/httpx/running
+    
+[^6]: httpx.md
+    
+[^7]: https://pkg.go.dev/github.com/projectdiscovery/httpx/common/httpx
+    
+[^8]: https://hub.docker.com/r/projectdiscovery/httpx
+    
+[^9]: https://projectdiscovery.io/blog/introducing-httpx-dashboard-2
+    
+[^10]: https://github.com/projectdiscovery/httpx/labels
+    
+[^11]: https://github.com/projectdiscovery/httpx/discussions/categories/general
+    
+[^12]: https://www.kali.org/tools/httpx-toolkit/
+    
+[^13]: https://highon.coffee/blog/httpx-cheat-sheet/
+    
+[^14]: https://infosecwriteups.com/httpx-troubleshooting-issue-38b61549126b
+    
+[^15]: https://lipsonthomas.com/httpx/
+    
+[^16]: https://www.hackingarticles.in/a-detailed-guide-on-httpx/
+    
+[^17]: https://www.python-httpx.org/quickstart/
+    
+[^18]: https://stackoverflow.com/questions/54865824/return-json-with-an-http-status-other-than-200-in-rocket

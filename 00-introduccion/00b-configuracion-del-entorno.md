@@ -1,124 +1,77 @@
 # Configuración del Entorno
 
-Para poder practicar las técnicas que veremos en esta guía, es absolutamente esencial que construyamos nuestro propio laboratorio de hacking. Empezaremos con un laboratorio local y virtualizado y luego exploraremos las plataformas de entrenamiento online.
 
-**¿Por qué es tan importante un laboratorio local?**
+Para practicar las técnicas de esta guía, montar un laboratorio es esencial. Empezaremos con un laboratorio local y virtualizado, y luego exploraremos plataformas online.
 
-* **Seguridad:** Mantiene los experimentos aislados de tu sistema principal.
-* **Legalidad y Ética:** Nos permite atacar sistemas que hemos montado nosotros mismos.
-* **Flexibilidad:** Nos permite probar, romper y restaurar sistemas a voluntad sin consecuencias reales.
+## Por qué un laboratorio local
+- Seguridad: aislamos experimentos de nuestro sistema.
+- Legalidad y ética: solo atacamos sistemas propios.
+- Flexibilidad: probar, romper y restaurar sin riesgo.
 
----
+***
 
-## Paso 1: Elige tu Software de Virtualización
+## Paso 1: Software de virtualización
+Elegimos un gestor de máquinas virtuales.
 
-Necesitamos un programa que gestione nuestras máquinas virtuales (ordenadores dentro de nuestro ordenador).
+### Opción A: VirtualBox (gratuito)
+- Compatible con Windows/macOS/Linux.
+- Descarga oficial: https://www.virtualbox.org/wiki/Downloads
 
-#### **Opción A: VirtualBox (Gratuito y Open Source)**
+### Opción B: VMware (industria)
+- Usados en entornos corporativos.
+- Versiones gratuitas robustas.
+- Descarga:
+  - Windows/Linux: https://www.vmware.com/products/workstation-player/workstation-player-evaluation.html
+  - macOS: https://www.vmware.com/products/fusion/fusion-evaluation.html
 
-* **Descripción:** La opción perfecta para empezar. Es potente, completamente gratuita y funciona en Windows, macOS y Linux.
-* **Acción:** Descarga e instala la última versión de VirtualBox desde su [página web oficial](https://www.virtualbox.org/wiki/Downloads).
+***
 
-#### **Opción B: VMware (Estándar de la Industria)**
+## Paso 2: Máquina atacante (Kali Linux)
+Sistema con herramientas de hacking.
 
-* **Descripción:** Muy utilizado en entornos corporativos. Sus versiones gratuitas para uso personal son muy robustas.
-* **Acción:** Descarga e instala la versión gratuita correspondiente a tu sistema:
-  * **Para Windows/Linux:** [VMware Workstation Player](https://www.vmware.com/products/workstation-player/workstation-player-evaluation.html)
-  * **Para macOS:** [VMware Fusion Player](https://www.vmware.com/products/fusion/fusion-evaluation.html)
+- Descarga https://www.kali.org/get-kali/#kali-virtual-machines para tu virtualizador.
+- En VirtualBox: Archivo > Importar servicio virtualizado (> .ova).
+- En VMware: File > Open (> carpeta descomprimida).
 
----
+***
 
-## Paso 2: Tu Máquina de Ataque (Kali Linux)
+## Paso 3: Máquinas víctimas vulnerables
+Objetivos deliberadamente inseguros para practicar.
 
-Necesitamos un sistema operativo cargado con herramientas de hacking. Usaremos Kali Linux.
+- OWASP Juice Shop: https://owasp.org/www-project-juice-shop/
+- Metasploitable 2: https://information.rapid7.com/download-metasploitable-2.html
 
-**Acción: Descarga e Importa**
+***
 
-1. Ve a la [página oficial de descargas de Kali Linux para máquinas virtuales](https://www.kali.org/get-kali/#kali-virtual-machines) y descarga la imagen que corresponda a tu software de virtualización (VirtualBox o VMware).
-2. **En VirtualBox:** Usa `Archivo > Importar servicio virtualizado...` con el archivo `.ova`.
-3. **En VMware:** Usa `File > Open...` y selecciona el archivo `.vmx` de la carpeta descomprimida.
+## Paso 4: Plataformas online
+Para complementar tu laboratorio.
 
----
+- PortSwigger Web Academy: https://portswigger.net/web-security (gratuita)
+- TryHackMe: https://tryhackme.com (guiado para principiantes)
+- Hack The Box: https://www.hackthebox.com (avanzado, menos guías)
+- Dockerlabs: https://github.com/vulhub/vulhub (contenedores docker vulnerables)
 
-## Paso 3: Tus Máquinas Víctima Locales (El Gimnasio en Casa)
+***
 
-Necesitamos objetivos deliberadamente vulnerables para practicar en nuestro entorno local.
+## Paso 5: Red local
+Configura NAT para conectar VMs a internet sin riesgos.
 
-**Acción:** Descarga e importa al menos estas dos:
+- VirtualBox: Configuración > Red > NAT
+- VMware: VM > Settings > Network Adapter > NAT
 
-* **[OWASP Juice Shop](https://owasp.org/www-project-juice-shop/):** La mejor para hacking web.
-* **[Metasploitable 2](https://information.rapid7.com/download-metasploitable-2.html):** Un clásico para vulnerabilidades de red.
+***
 
----
+## Paso 6: Herramientas dentro de Kali
 
-## Paso 4: Plataformas de Entrenamiento Online (El Gimnasio en la Nube)
+- Burp Suite Community: https://portswigger.net/burp/communitydownload
+- VS Code: sudo apt update && sudo apt install code -y
 
-Además de tu laboratorio local, existen plataformas online increíbles para aprender y practicar.
+***
 
-#### **PortSwigger Web Security Academy**
+## Paso 7: Personalización con dotfiles
 
-* **Qué es:** La biblia del hacking web, creada por los desarrolladores de Burp Suite. Contiene laboratorios de altísima calidad para cada tipo de vulnerabilidad web.
-* **Ideal para:** Aprender y dominar vulnerabilidades web específicas de forma aislada.
-* **Acción:** [Accede a la academia aquí](https://portswigger.net/web-security). Es gratuita.
+Para replicar mi entorno:
 
-#### **TryHackMe**
-
-* **Qué es:** Una plataforma muy popular con "habitaciones" (rooms) guiadas que te enseñan conceptos desde cero.
-* **Ideal para:** Principiantes que buscan un camino de aprendizaje estructurado.
-* **Acción:** [Empieza en TryHackMe](https://tryhackme.com/).
-
-#### **Hack The Box (HTB)**
-
-* **Qué es:** Una plataforma más desafiante con máquinas que simulan entornos reales. Hay menos guías y se espera que investigues más por tu cuenta.
-* **Ideal para:** Poner a prueba tus habilidades y prepararte para certificaciones como el OSCP.
-* **Acción:** [Únete a Hack The Box](https://www.hackthebox.com/).
-
-#### **Laboratorios con Docker (Dockerlabs)**
-
-* **Qué es:** Una forma moderna y ligera de levantar entornos vulnerables específicos usando contenedores de Docker, sin necesidad de una máquina virtual completa.
-* **Ideal para:** Usuarios un poco más avanzados que quieren probar un exploit para una tecnología concreta rápidamente.
-* **Acción:** Explora colecciones como [Vulhub en GitHub](https://github.com/vulhub/vulhub), un repositorio masivo de entornos vulnerables pre-configurados.
-
----
-
-## Paso 5: Configuración de la Red Local
-
-Esta configuración es para tus máquinas virtuales locales (Kali, Metasploitable, etc.).
-
-**Acción:** Para cada una de tus máquinas virtuales, configúralas en modo **"Red NAT"** para mantenerlas en una red segura pero con acceso a internet.
-
-* **En VirtualBox:** `Configuración > Red > Conectado a: Red NAT`.
-* **En VMware:** `Virtual Machine > Settings > Network Adapter > NAT`.
-
----
-
-## Paso 6: Herramientas Esenciales Adicionales
-
-Instala estas herramientas **dentro de tu máquina virtual Kali**.
-
-**Acción:**
-
-1. **Burp Suite Community:** Descárgalo desde la [web de PortSwigger](https://portswigger.net/burp/communitydownload).
-2. **VS Code:** Instálalo con `sudo apt update && sudo apt install code -y`.
-
----
-
-## Paso 7 (Opcional): Personaliza tu Entorno con mis Dotfiles
-
-Mis **dotfiles** son mi configuración personal de terminal. Si los instalas, tu entorno será igual al mío.
-
-### ¿Qué contiene?
-
-[](https://github.com/theoffsecgirl/dotfiles/tree/main#qu%C3%A9-contiene)
-
-* Configuración de **Zsh** (temas, alias, funciones, prompt)
-* Archivos de entorno para customizar workstations
-* Scripts útiles para hackers éticos y devs
-* Organización pensada para Windows 11 + WSL2 + Kali
-
-**Acción rápida (en tu Kali, WSL o cualquier terminal):**
-
-```
-# Clona el repositorio desde GitHub
+```bash
+# Clonar repo:
 git clone https://github.com/theoffsecgirl/dotfiles.git
-```

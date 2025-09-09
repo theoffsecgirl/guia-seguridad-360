@@ -1,64 +1,136 @@
-# Puertos Alternativos
+# Puertos alternativos y superficie real
 
-### Introducción: Más Allá de los Puertos 80 y 443
+Limitar el reconocimiento a 80/443 es perder gran parte de la **superficie**: los entornos modernos exponen dev servers, paneles y microservicios en puertos no estándar, a menudo con menos endurecimiento y controles débiles. El objetivo aquí es priorizar puertos “jugosos”, qué buscar y cómo confirmarlo con una cadena rápida de herramientas sin salirse del scope.[^1]
 
-Cuando pensamos en la web, los puertos **80 (HTTP)** y **443 (HTTPS)** son los reyes. Son los estándares por los que se sirve la gran mayoría del tráfico web. Históricamente, el puerto 80 era la norma, con tráfico en texto plano, pero la necesidad de seguridad (cifrado de datos, privacidad) hizo que HTTPS en el puerto 443 se convirtiera en el estándar de facto.
+## Más allá de 80/443
 
-Sin embargo, en el reconocimiento y pentesting, limitar nuestra búsqueda a estos dos puertos es un error de novato. Las aplicaciones modernas son sistemas complejos, a menudo compuestos por múltiples servicios (microservicios) que se ejecutan en una variedad de puertos no estándar, especialmente en entornos de desarrollo, pre-producción (staging) o incluso en producción debido a errores de configuración.
+- 80/443 siguen siendo críticos, pero microservicios, entornos de staging y herramientas de CI/CD suelen vivir en 3000, 4200, 5000, 8000, 8080, 8443, 8888, 9000, 5432, 27017, 6379, entre otros, y suelen presentar menor madurez de seguridad que el reverse proxy público.[^3][^1]
+- En producción ideal, un reverse proxy o balanceador debería “tapar” todo salvo 443; en la práctica, una regla de firewall permisiva o un despliegue de dev “temporal” quedan expuestos y suelen convertirse en hallazgos de alto impacto por sí mismos.[^1]
 
-Cada puerto abierto es una nueva puerta que tocar, y muchas de ellas no tienen el mismo nivel de seguridad que la puerta principal (puerto 443).
-
-### Puertos Comunes, Sus Usos y Nuestra Perspectiva Ofensiva
-
-Aquí tienes una tabla con puertos comunes, su uso legítimo y, lo más importante, **qué debemos buscar nosotros como profesionales de la seguridad ofensiva**.
+## Tabla ofensiva de puertos alternativos
 
 
-| Puerto    | Servicio Común / Tecnología                                | Qué Buscar (Perspectiva Ofensiva)                                                                                                                                                                                                                                                               |
-| :-------- | :----------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **80**    | **HTTP**                                                     | Tráfico en texto plano (posibilidad de ataques MitM en redes no seguras), aplicaciones legacy (antiguas) con vulnerabilidades conocidas, redirecciones mal configuradas a HTTPS, hosts virtuales mal configurados.                                                                              |
-| **443**   | **HTTPS**                                                    | El objetivo principal. Buscar todo el espectro de vulnerabilidades web (XSS, SQLi, IDOR, etc.). Además, buscar misconfigurations de SSL/TLS (certificados débiles, protocolos antiguos como SSLv3/TLSv1.0), cabeceras de seguridad ausentes o mal configuradas.                                |
-| **3000**  | **Servidores de desarrollo Node.js** (React, Express, etc.)  | **¡Objetivo de alto valor!** Entornos de desarrollo expuestos, posibles endpoints de debug, source maps que revelan código fuente, Hot Module Reloading (HMR) que puede filtrar información, CORS mal configurados (`*`), posible ejecución con privilegios elevados dentro de contenedores. |
-| **4200**  | **Servidor de desarrollo Angular**                           | Similar al puerto 3000. Identifica el uso de Angular. Buscar endpoints de API a los que se conecta la aplicación, lógica de negocio en el código fuente del cliente, posibles fugas de información.                                                                                          |
-| **5000**  | **Servidores de desarrollo Python** (Flask, Django) / Docker | **¡Objetivo de alto valor!** Flask en modo debug (Werkzeug debugger, que puede llevar a RCE), APIs expuestas sin autenticación, servicios internos de contenedores Docker expuestos por error a Internet.                                                                                      |
-| **8000**  | Alternativo HTTP / Django dev server / Python http.server    | A menudo se usa para servicios rápidos o temporales. Puede albergar aplicaciones sencillas con menos seguridad, APIs internas, o un simple servidor de archivos que exponga el contenido de un directorio.                                                                                      |
-| **8080**  | **HTTP Alternativo / Proxy / Apache Tomcat**                 | Paneles de administración con credenciales por defecto (`admin:admin`, `tomcat:tomcat`), aplicaciones Java vulnerables a deserialización, versiones de Tomcat antiguas con exploits públicos, posible acceso a AJP (puerto 8009, vulnerabilidad Ghostcat).                                    |
-| **8443**  | **HTTPS Alternativo**                                        | Similar a 8080 pero con SSL/TLS. Común en aplicaciones empresariales (e.g., VMware, software de Atlassian). Buscar paneles de login, software desactualizado con CVEs conocidas, credenciales por defecto para estas aplicaciones específicas.                                                 |
-| **8888**  | **Jupyter Notebooks / HTTP Alternativo**                     | **¡Muy crítico!** Si un Jupyter Notebook está expuesto sin contraseña, a menudo permite crear una terminal o ejecutar código Python directamente en el servidor, lo que equivale a RCE.                                                                                                     |
-| **9000**  | Herramientas de desarrollo /**SonarQube** / Portainer        | Herramientas de CI/CD o calidad de código. Buscar acceso anónimo, credenciales por defecto, exposición de código fuente y vulnerabilidades detectadas por la propia herramienta. Un SonarQube abierto puede ser una mina de oro de vulnerabilidades.                                         |
-| **5432**  | **PostgreSQL** (Base de Datos)                               | **No debería estar expuesto a Internet.** Si lo está, es un hallazgo en sí mismo. Intentar login con credenciales por defecto (`postgres:postgres`, `postgres:password`), enumerar bases de datos, comprobar si permite conexiones desde cualquier host.                                      |
-| **27017** | **MongoDB** (Base de Datos)                                  | **No debería estar expuesto.** Comprobar acceso sin autenticación (por defecto en versiones antiguas), enumerar bases de datos y colecciones, posible fuga masiva de datos.                                                                                                                    |
-| **6379**  | **Redis** (Almacén de datos en memoria)                     | **No debería estar expuesto.** Comprobar acceso sin autenticación. Si es accesible, se puede leer/escribir en la caché, lo que puede llevar a RCE o manipulación de datos de la aplicación. Usar `redis-cli` para conectar.                                                                 |
+| Puerto | Servicio/Tecnología típica        | Qué buscar (alto valor)                                                                                                                                                                                      |
+| :----- | :---------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 3000   | Dev servers Node.js (React/Express) | sourcemaps, endpoints de debug, CORS “*”, credenciales y secretos en JS; enumerar APIs de backend a partir del código cliente[^1].                                                                         |
+| 4200   | Dev server Angular                  | rutas y llamadas a API desde frontend, lógica de negocio en cliente y tokens en almacenamiento local[^1].                                                                                                    |
+| 5000   | Flask/Django dev, Docker internos   | Werkzeug Debug activo con consola remota (PIN reproducible) que deriva en RCE si es accesible o el PIN es recuperable desde ficheros legibles[^4][^5].                                                        |
+| 8000   | HTTP alternativo, django runserver  | listados de directorios, servidores simples “http.server”, APIs internas y artefactos de build expuestos[^1].                                                                                               |
+| 8080   | HTTP alternativo, proxies y Tomcat  | paneles admin con credenciales por defecto, apps Java con deserialización, proxys mal encadenados[^1].                                                                                                       |
+| 8443   | HTTPS alternativo                   | consolas empresariales (p. ej., devops) desactualizadas; validar TLS/ciphers y headers de seguridad[^1].                                                                                                      |
+| 8888   | Jupyter Notebook                    | si no exige token/contraseña o está enlazado a 0.0.0.0, ejecución arbitraria de código desde el navegador; por defecto se liga a 127.0.0.1:8888 pero muchos despliegues lo exponen indebidamente[^6][^7]. |
+| 9000   | SonarQube/Portainer/devtools        | accesos anónimos o credenciales por defecto, filtrado de código y findings reutilizables para pivotar[^1].                                                                                                  |
+| 5432   | PostgreSQL                          | servicio expuesto a Internet; probar credenciales por defecto y políticas de bind-address/host all[^3].                                                                                                      |
+| 27017  | MongoDB                             | exposición sin auth en versiones antiguas, fuga de colecciones completas[^3].                                                                                                                                |
+| 6379   | Redis                               | acceso sin contraseña, escritura de claves que pueden llevar a RCE o manipular sesiones[^3].                                                                                                                 |
 
-### ¿Por Qué Nos Importan Tantos Puertos? (La Perspectiva del Atacante)
+Nota: el listado general de puertos y asignaciones IANA ayuda a ampliar el barrido según señales de fingerprinting y vertical del objetivo.[^2]
 
-El texto original lo explica bien desde el punto de vista del desarrollo: las aplicaciones modernas son modulares (microservicios). Para nosotros, esto significa que **la superficie de ataque se multiplica**. Cada servicio en su propio puerto es una nueva oportunidad para encontrar una vulnerabilidad.
+## Metodología de descubrimiento (rápida)
 
-En un entorno de producción ideal, un **proxy inverso (reverse proxy)** como Nginx o un balanceador de carga debería ocultar todos estos puertos internos y canalizar todo el tráfico público a través del puerto 443. Sin embargo, en el mundo real, los errores de configuración son comunes:
+- Paso 1 — Descubrimiento de puertos: un escaneo SYN/CONNECT de alto rendimiento para obtener “qué está abierto” sin aún profundizar en servicios, priorizando top‑ports y un límite de tasa conservador para no romper políticas de los programas.[^1]
+- Paso 2 — Enumeración de servicios: para lo abierto, fingerprint y versión con una pasada más lenta y segura, activando scripts “safe” únicamente y capturando títulos HTTP/TLS y banners para priorizar rutas de explotación.[^1]
+- Paso 3 — Validación específica: comprobar comportamientos de debug (5000 Flask/Werkzeug), tokens/ACLs en 8888 Jupyter, credenciales por defecto o acceso anónimo en 8080/8443/9000, y exposición indebida en 5432/27017/6379.[^6][^1]
 
-- Un desarrollador puede exponer un puerto de debug a Internet por error.
-- Una regla de firewall puede ser demasiado permisiva.
-- Un entorno de staging, que se supone que es interno, puede acabar siendo accesible públicamente.
-
-**Encontrar un puerto de desarrollo (3000, 5000, etc.) en un dominio de producción es, a menudo, un hallazgo crítico por sí mismo.**
-
-### Metodología de Descubrimiento
-
-La forma de encontrar estos puertos abiertos es mediante un **escaneo de puertos** en la fase de reconocimiento activo.
-
-- **Herramientas Clave:** `nmap`, `masscan`, `naabu` (de ProjectDiscovery).
-- **Estrategia:**
-  1. Obtener las direcciones IP de tus objetivos (subdominios resueltos).
-  2. Lanzar un escaneo rápido con `masscan` o `naabu` sobre los puertos más comunes (top 1000, top 10000).
-  3. Para las IPs que muestren puertos interesantes, lanzar un escaneo más profundo y detallado con `nmap` para identificar las versiones de los servicios y ejecutar scripts de enumeración.
-
-**Ejemplo de Comando `nmap`:**
+Cadena de comandos
 
 ```bash
-# Escanea los 1000 puertos más comunes, detecta versiones y ejecuta scripts por defecto en un host
-nmap -sV -sC -T4 -v mi-objetivo.com
-
-# Escanea un puerto específico, como el 3000
-nmap -p 3000 -sV -sC mi-objetivo.com
+# 1) Detección explosiva de puertos (naabu): top 1000 + tasa controlada
+naabu -list subs.txt -top-ports 1000 -rate 2000 -exclude-cdn -silent -o ports.txt
 ```
 
-Recuerda siempre **respetar el scope del programa de bug bounty** si estás en uno. El escaneo de puertos agresivo puede estar prohibido.
+```bash
+# 2) Profundizar con Nmap solo en lo abierto (fingerprint + scripts seguros)
+cut -d: -f1 ports.txt | sort -u > ips.txt
+nmap -sS -sV -sC -p 3000,4200,5000,8000,8080,8443,8888,9000,5432,27017,6379 -iL ips.txt -T3 -oN enum.txt
+```
+
+```bash
+# 3) Verificación puntual
+# Werkzeug debug (5000): buscar cabeceras/HTML característicos y probar consola/PIN si procede
+curl -skI http://host:5000/ | cat
+# Jupyter (8888): debe exigir token/contraseña y ligarse a 127.0.0.1; si expuesto en 0.0.0.0 sin control => crítico
+curl -sk https://host:8888/ | head -n 20
+```
+
+Alternativa masiva
+
+```bash
+# masscan para barridos grandes y luego nmap para fingerprint
+masscan -p3000,4200,5000,8000,8080,8443,8888,9000,5432,27017,6379 198.51.100.0/24 --max-rate 5000 -oL m.out
+grep open m.out | awk '{print $4}' | sort -u > alive.txt
+nmap -sS -sV -sC -p 3000,4200,5000,8000,8080,8443,8888,9000,5432,27017,6379 -iL alive.txt -T3
+```
+
+## Señales de alto impacto
+
+- 5000 Flask con Werkzeug Debug: consola interactiva tras PIN; el PIN puede derivarse si existen lecturas de ficheros y, por tanto, habilita RCE.[^4][^1]
+- 8888 Jupyter expuesto: si no exige token o está accesible desde Internet, equivale a ejecución arbitraria de código; por diseño debería ligarse a localhost y requerir autenticación/token.[^6][^1]
+- 8080/8443 paneles admin: credenciales por defecto, versiones con CVEs conocidas y TLS/ciphers inseguros; combinar con enumeración de rutas y títulos para priorizar.[^1]
+- 5432/27017/6379 abiertos a Internet: casi siempre misconfiguración; probar acceso mínimo, listar bases/keys y recomendar cierre/bind interno.[^1]
+
+## Buenas prácticas y límites
+
+- Respetar siempre el scope del programa antes de escanear y ajustar la tasa; algunos prohíben escaneos agresivos o puertos infra no listados.[^1]
+- Registrar comandos, tiempos y resultados; repetir en sesión limpia para reproducibilidad y preparar reporte con impacto claro y mitigación directa (cerrar puerto, restringir bind, exigir auth, mover a 127.0.0.1, proteger con proxy).[^1]
+
+## Referencias útiles
+
+- Lista y rangos de puertos (IANA + listados comunes) para extender wordlists y detecciones.[^8]
+- Naabu (ProjectDiscovery): port‑scanner rápido con integración hacia nmap y control de tasa/top‑ports.[^13][^9]
+- Riesgos específicos: Werkzeug Debug (RCE) y seguridad de Jupyter (token/localhost) para validar criticidad en 5000/8888.[^6]
+  <span style="display:none">[^15][^17][^19][^21][^23][^25][^26]</span>
+
+<div style="text-align: center">Puertos alternativos y superficie real</div>
+
+[^1]: 01d-puertos-alternativos.md
+    
+[^2]: https://en.wikipedia.org/wiki/List_of_TCP_and_UDP_port_numbers
+    
+[^3]: https://www.stationx.net/common-ports-cheat-sheet/
+    
+[^4]: https://www.exploit-db.com/exploits/43905
+    
+[^5]: https://book.jorianwoltjer.com/web/frameworks/flask
+    
+[^6]: https://jupyter-notebook.readthedocs.io/en/5.7.0/security.html
+    
+[^7]: https://stackoverflow.com/questions/51739199/error-unable-to-open-jupyter-notebook-port-8888-is-already-in-use/51739548
+    
+[^8]: https://www.iana.org/assignments/service-names-port-numbers
+    
+[^9]: https://docs.projectdiscovery.io/opensource/naabu/usage
+    
+[^10]: https://www.ceos3c.com/security/nmap-tutorial-series-1-nmap-basics/
+    
+[^11]: https://stackoverflow.com/questions/60133457/does-jupyter-notebook-or-lab-risk-exposing-data-via-the-web
+    
+[^12]: https://docs.projectdiscovery.io/tools/naabu/overview
+    
+[^13]: https://github.com/projectdiscovery/naabu
+    
+[^14]: https://github.com/projectdiscovery/naabu-action
+    
+[^15]: https://systemweakness.com/naabu-port-scanner-f3fd2e6b59b7
+    
+[^16]: https://osintteam.blog/best-port-scanner-for-bug-bounty-how-to-install-and-use-naabu-efficiently-4bffdab35ed5
+    
+[^17]: https://github.com/jupyter/notebook/issues/3495
+    
+[^18]: https://twitter.com/lo_security/status/1033726690034417665
+    
+[^19]: https://hub.docker.com/r/projectdiscovery/naabu
+    
+[^20]: https://raw.githubusercontent.com/projectdiscovery/naabu/v2.1.0/README.md
+    
+[^21]: https://angelica.gitbook.io/hacktricks/network-services-pentesting/pentesting-web/werkzeug
+    
+[^22]: https://ctftime.org/writeup/37019
+    
+[^23]: https://github.com/jupyter/help/issues/138
+    
+[^24]: https://www.youtube.com/watch?v=MVItEDBBcgg
+    
+[^25]: https://www.reddit.com/r/Python/comments/15b6j1n/my_firm_is_afraid_of_anacondajupyter_notebook/
+    
+[^26]: https://github.com/robertdavidgraham/masscan

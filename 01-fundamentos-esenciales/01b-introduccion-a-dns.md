@@ -1,73 +1,128 @@
-El **Domain Name System (DNS)** traduce nombres de dominio legibles por humanos (e.g., `www.google.com`) en direcciones IP numéricas que entienden las máquinas.
+# Introducción a DNS
 
-### Jerarquía de DNS
+El Domain Name System (DNS) traduce nombres legibles (www.ejemplo.com) a direcciones IP y mantiene caché con tiempos de vida (TTL), lo que acelera respuestas y abre vectores si hay mala configuración o envenenamiento.
 
+## Jerarquía y flujo de resolución
 
-| Tipo  | Descripción                  | Ejemplo                  |
-| :---- | :---------------------------- | :----------------------- |
-| Root  | `.` implícito                |                          |
-| TLD   | Top-Level Domain              | `.com`, `.org`           |
-| ccTLD | Country Code Top-Level Domain | `.es`, `.uk`             |
-| sTLD  | Sponsored TLD                 | `.gov`, `.edu`           |
-| SLD   | Second-Level Domain           | `google` en `google.com` |
+- Raíz (.) → TLD (.com, .org) / ccTLD (.es, .uk) / sTLD (.gov, .edu) → SLD (ej. “google” en google.com) → subdominios (api.google.com).
+- Resolución típica: cliente → resolvedor recursivo (ISP/empresa) → raíz → TLD → autoritativos del dominio → respuesta con TTL y caché intermedia.
 
-### Registros DNS comunes
+## Registros DNS clave
 
 
-| Tipo  | Descripción                              |
-| :---- | :---------------------------------------- |
-| A     | Mapea un dominio a una dirección IPv4.   |
-| AAAA  | Mapea un dominio a una dirección IPv6.   |
-| MX    | Servidores de correo electrónico.        |
-| CNAME | Alias de otro dominio.                    |
-| TXT   | Información adicional (SPF, DKIM, etc.). |
-| NS    | Servidores de nombre autorizados.         |
-| SRV   | Servicios específicos en el dominio.     |
+| Tipo      | Uso práctico                                                        |
+| :-------- | :------------------------------------------------------------------- |
+| A / AAAA  | Nombre → IPv4 / IPv6.                                               |
+| CNAME     | Alias a otro nombre (ojo a “dangling CNAME” y subdomain takeover). |
+| MX        | Correo del dominio (prioridades); valida superficies SMTP.           |
+| TXT       | Metadatos (SPF, DKIM, DMARC, verificación).                         |
+| NS        | Autoritativos de la zona (delegación).                              |
+| SOA       | Autoridad de zona (serie, refresh, retry, mínimo TTL).              |
+| SRV       | Ubicación de servicios (_service._proto).                           |
+| PTR       | Reverse DNS (IP → nombre).                                          |
+| CAA       | Qué CAs pueden emitir certificados; útil para hardening.           |
+| DS/DNSKEY | Registros de DNSSEC (firma/validación).                             |
 
-### Técnicas de Reconocimiento y Ataques sobre DNS
+## Zonas y delegación
 
-- **Enumeración de Subdominios**:
+- Zona: porción administrativa con sus registros y SOA; puede delegar subzonas vía NS.
+- Split‑horizon: mismas zonas con respuestas distintas según origen (interno/externo).
+- Transferencias: AXFR (completa) / IXFR (incremental) para secundarios; deben estar restringidas.
 
-  - Fuerza bruta con diccionarios.
-  - OSINT y Google Dorks (`site:*.dominio.com`).
-- **Transferencias de Zona (AXFR)**:
+## Recon y enumeración (operativo)
 
-  - Malas configuraciones permiten listar todos los registros DNS.
-- **Tipos de Ataques**:
+- Pasivo: WHOIS, certificados públicos, históricos de DNS, dorks, leaks en repositorios.
+- Activo: listar NS/SOA, obtener registros comunes, detectar wildcard, probar AXFR contra cada NS, brute force de subdominios, reversos sobre rangos.
+- Señales de interés: TTLs anómalos, NS inconsistentes, open resolvers, CNAME a servicios huérfanos, políticas SPF/DMARC débiles.
 
-  - **DNS Rebinding**: Manipulación de resoluciones para bypassear firewalls.
-  - **DNS Cache Poisoning**: Inyectar datos falsos en la caché de un servidor DNS.
-  - **DNS Tunneling**: Exfiltración de datos a través de consultas DNS.
+## Ataques y vectores comunes
 
-### Herramientas Comunes para DNS
+- Cache poisoning: introducir respuestas falsas en cachés recursivas para redirigir tráfico.
+- DNS rebinding: alternar IPs en resoluciones para alcanzar recursos internos desde el navegador.
+- DNS tunneling: exfiltración/CC dentro de consultas/respuestas (dominios controlados).
+- Amplificación en open resolvers: abuso de recursión pública para DDoS.
+- AXFR expuesto: listado completo de la zona por mala configuración.
+- Subdomain takeover: CNAME apuntando a recurso eliminado (S3, Heroku, etc.).
+- NS/Delegation hijack: dominios de NS caducados o controlados por terceros.
 
-- `dig`
-- `nslookup`
-- `host`
-- `dnsrecon`
-- `fierce`
-- `sublist3r`
-- `Amass`
+## Defensas a evaluar (y recomendar)
 
-### Ejemplos de uso de `dig`
+- DNSSEC en cadena (DS/DNSKEY válidos); valida origen e integridad.
+- Restringir recursión/puertos aleatorios/IDs; cerrar “open resolvers”.
+- Denegar AXFR a IPs no autorizadas; monitorear cambios de SOA/NS.
+- CAA restrictivo; SPF/DMARC alineados; TTLs razonables y coherentes.
+
+## Herramientas útiles
+
+- Básicas: dig, host, nslookup.
+- Enumeración: dnsrecon, dnsenum, fierce, amass, sublist3r, gobuster dns.
+- Soporte: whois, traceroute, resolvers públicos para contraste.
+
+## Ejemplos con dig (listos para copiar)
 
 ```bash
-# Obtener el registro A
+# A / AAAA
 dig A www.ejemplo.com +short
+dig AAAA www.ejemplo.com +short
 
-# Obtener registros MX
-dig MX ejemplo.com
+# MX / NS / SOA / TXT
+dig MX ejemplo.com +short
+dig NS ejemplo.com +short
+dig SOA ejemplo.com
+dig TXT ejemplo.com +short
+dig TXT _dmarc.ejemplo.com +short
 
-# Intentar transferencia de zona
-dig AXFR ejemplo.com @ns1.ejemplo.com
+# Trazado de resolución (desde raíz)
+dig +trace www.ejemplo.com
+
+# Consultar directamente a un autoritativo
+dig A www.ejemplo.com @ns1.ejemplo.com
+
+# Intentar AXFR contra cada NS (siempre permitido solo en laboratorio/permiso explícito)
+for ns in $(dig NS ejemplo.com +short); do echo "== $ns =="; dig AXFR ejemplo.com @$ns; done
+
+# Banner CHAOS (a veces muestra versión del servidor)
+dig version.bind CHAOS TXT @ns1.ejemplo.com +short
+
+# Detección rápida de wildcard (esperado NXDOMAIN si no hay wildcard)
+random=$(tr -dc a-z0-9 </dev/urandom | head -c 12)
+dig $random.ejemplo.com +short
 ```
 
-### Códigos de Estado DNS comunes
+## Códigos de estado (RCODE) frecuentes
 
 
-| Código  | Significado                              |
-| :------- | :--------------------------------------- |
-| NOERROR  | Respuesta correcta.                      |
-| NXDOMAIN | El dominio consultado no existe.         |
-| SERVFAIL | Error en el servidor DNS.                |
-| REFUSED  | Petición rechazada por el servidor DNS. |
+| Código  | Significado                                           |
+| :------- | :---------------------------------------------------- |
+| NOERROR  | Respuesta válida (puede venir sin datos: NODATA).    |
+| NXDOMAIN | El nombre no existe.                                  |
+| SERVFAIL | Error del servidor (fallo de recursión/validación). |
+| REFUSED  | Consulta rechazada por política.                     |
+| FORMERR  | Formato de consulta inválido.                        |
+
+## Checklist para informes (rápido)
+
+- Coherencia A/AAAA/MX/NS/SOA entre autoritativos; diferencias documentadas.
+- AXFR denegado en todos los NS; evidencias si alguno lo permite.
+- Sin open resolvers ni recursión a terceros; política clara de rate limit.
+- DNSSEC: presencia y validez de DS/DNSKEY; recomendaciones si falta.
+- Riesgos detectados: wildcard erróneo, CNAME huérfanos, TTLs extremos, políticas de correo débiles (SPF “+all”, DMARC inexistente).
+
+Con esto tienes una “Introducción a DNS” compacta, accionable y orientada a hallazgos reales sin perder el rigor técnico.
+<span style="display:none">[^4][^7]</span>
+
+<div style="text-align: center">Introducción a DNS</div>
+
+[^1]: https://medium.verylazytech.com/complete-guide-to-dns-and-dhcp-penetration-testing-fb4597e5d880
+    
+[^2]: https://angelica.gitbook.io/hacktricks/network-services-pentesting/pentesting-dns
+    
+[^3]: https://infosecwriteups.com/a-beginners-guide-to-dns-reconnaissance-part-1-6cd9f502db7d
+    
+[^4]: https://dns-pentesting.popdocs.net
+    
+[^5]: https://securedebug.com/mastering-dns-enumeration-and-attacks-an-ultra-extensive-guide/
+    
+[^6]: https://hackers-arise.com/network-basics-for-hackers-domain-name-service-dns-and-bind-how-it-works-and-how-it-breaks/
+    
+[^7]: https://www.jalblas.com/blog/dns-essentials-key-insights-for-pentesters/

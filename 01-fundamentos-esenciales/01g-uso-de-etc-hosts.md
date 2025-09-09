@@ -1,87 +1,139 @@
-# Uso de /etc/hosts en Pentesting y Bug Bounty
+# Qué es /etc/hosts
 
+- El fichero /etc/hosts mapea nombres de host a direcciones IP de forma local y se consulta antes que el resolver DNS si así lo establece la política del sistema, permitiendo anular resoluciones sin depender de servidores externos.[^1]
+- Esta capacidad de “override” es inmediata y muy útil para pruebas controladas de enrutamiento, vhosts y escenarios de laboratorio sin tocar DNS público.[^1]
 
-### ¿Qué es el fichero `/etc/hosts`?
+## Precedencia y orden de resolución
 
-El fichero `/etc/hosts` es, básicamente, la agenda de contactos de tu ordenador para nombres de dominio. Es un simple archivo de texto que permite **mapear nombres de host (como `mi-web.local`) a direcciones IP (como `192.168.1.100`) directamente en tu máquina.**
+- En Linux, el orden de búsqueda lo define /etc/nsswitch.conf en la directiva hosts, donde “files” representa /etc/hosts y “dns” el resolver configurado; colocando “files dns” se prioriza el fichero local frente a DNS.[^1]
+- Cambiar ese orden explica por qué algunas herramientas resuelven por hosts y otras consultan DNS primero; ajustarlo evita sorpresas cuando se necesita override local.[^5]
 
-Este fichero ha sido una parte fundamental del funcionamiento de las redes desde los inicios de ARPANET, antes incluso de que el sistema DNS (Domain Name System) que conocemos hoy existiera de forma masiva.
+## Rutas por sistema operativo
 
-### ¿Por Qué Funciona y Cuál es su Mecanismo?
+- Linux y macOS usan /etc/hosts (en macOS el fichero real reside en /private/etc/hosts, enlazado desde /etc).[^6]
+- En Windows el fichero se encuentra en C:\Windows\System32\drivers\etc\hosts y requiere permisos de administrador para editarlo.[^6]
 
-Cuando intentas acceder a un nombre de dominio (e.g., al escribir `ejemplo.com` en tu navegador), tu sistema operativo sigue una secuencia para resolver ese nombre a una IP. La clave está en el orden:
+## Casos ofensivos frecuentes
 
-1. **Primera Parada: El Fichero `/etc/hosts`:** Tu ordenador mira **PRIMERO** en este fichero. Si encuentra una entrada que coincide con el nombre de host que buscas, usa la IP mapeada ahí y el proceso de resolución termina. No pregunta a nadie más.
-2. **Anulación Local (Override):** Debido a que se comprueba primero, `/etc/hosts` tiene **prioridad sobre cualquier servidor DNS**. Actúa como un mecanismo de anulación local. Puedes hacer que `google.com` apunte a tu propia máquina (`127.0.0.1`) si te da la gana, y tu navegador te hará caso.
-3. **Mapeo Directo e Instantáneo:** Proporciona una correspondencia directa, sin necesidad de realizar consultas de red a servidores DNS externos.
-4. **Sin Caché DNS:** Los cambios que haces en `/etc/hosts` suelen tener efecto inmediato (o casi), sin tener que lidiar con la caché de DNS de tu sistema o de la red.
+- Acceder a apps internas o no publicadas: cuando se conoce la IP interna (VPN, salto), añadir el FQDN al hosts local permite que el navegador y herramientas apunten al destino correcto.[^1]
+- Pruebas de vhosts: en IPs que alojan múltiples sitios, mapear dominio→IP fuerza a que el servidor devuelva el sitio correcto según la cabecera Host.[^1]
+- Bypass de CDN/WAF hacia origin: si se descubre la IP de origen, mapear el dominio al origin permite probar controles de la aplicación sin el intermediario (siempre dentro de scope).[^1]
 
-**¿Y por qué no funciona sin una entrada?** Si el nombre de host no está en tu fichero `/etc/hosts`, tu ordenador inicia el proceso estándar de resolución DNS: comprueba su caché local, luego pregunta a los servidores DNS que tiene configurados (los de tu router, los de tu proveedor de Internet, o los que hayas puesto tú como los de Google o Cloudflare), y espera una respuesta. Si el nombre no está registrado en el DNS público, la resolución fallará.
+## Alternativas sin editar hosts
 
-### Casos de Uso en Pentesting y Bug Bounty
+- cURL: usar --resolve para “anclar” host:puerto→IP solo en esa petición, poblando la caché DNS interna de cURL y evitando tocar el sistema.[^8]
+- Burp Suite: en Project settings → DNS/Connections, “Hostname resolution overrides” mapea dominios a IPs a nivel de proyecto, ideal para navegadores en proxy y clientes no conscientes de proxy.[^10]
 
-Para nosotros, `/etc/hosts` es una herramienta de trabajo, no solo un archivo de configuración.
+## Ejemplos prácticos
 
-1. **Acceder a Aplicaciones Internas o No Públicas:**
-   - Durante el reconocimiento, puedes encontrar subdominios como `internal-dev.empresa-objetivo.com` que resuelven a una IP privada (e.g., `10.0.5.20`). Si tienes acceso a esa red (e.g., a través de una VPN o un host comprometido), necesitas añadir esa entrada a tu `/etc/hosts` para que tu navegador y herramientas sepan cómo llegar.
-2. **Pruebas de Hosts Virtuales (VHosts):**
-   - A veces, una única dirección IP aloja múltiples sitios web. El servidor web sabe qué sitio mostrar basándose en la cabecera `Host` de la petición HTTP. Si descubres un VHost (e.g., `secreto.empresa-objetivo.com`) que apunta a una IP conocida, puedes añadirlo a tu `/etc/hosts` para que tu navegador envíe la cabecera `Host` correcta y te muestre el sitio oculto.
-3. **Bypass de Protecciones Basadas en DNS (WAFs, etc.):**
-   - Si un WAF o un CDN (como Cloudflare) se encuentra delante de la IP real del servidor web, puedes usar `/etc/hosts` para apuntar el dominio directamente a la IP del servidor de origen (si la descubres), permitiéndote bypassar estas protecciones perimetrales.
-4. **Bloqueo de Dominios (Uso Defensivo/Práctico):**
-   - Puedes redirigir dominios de telemetría, publicidad o malware a `127.0.0.1` para que no se pueda contactar con ellos desde tu máquina.
+- cURL con --resolve
 
-### Ejemplo Práctico: Configuración en un Entorno con VPS
+```bash
+curl --resolve "ejemplo.com:443:1.2.3.4" https://ejemplo.com/
+```
 
-Es una práctica muy común y recomendada en pentesting no lanzar herramientas directamente desde tu portátil personal. En su lugar, se usa un **VPS (Virtual Private Server)** en la nube como "máquina de ataque".
+Este comando fuerza a cURL a conectar a 1.2.3.4 para ejemplo.com:443 sin editar el sistema.[^2]
 
-- **¿Por Qué Usar un VPS?:**
-  - **Aislamiento y Seguridad:** Mantiene las herramientas y el tráfico del pentest separados de tu máquina personal.
-  - **IP Pública Estática:** Te da una IP fija y una conexión a internet rápida y estable.
-  - **Entorno Limpio:** Puedes tener un entorno Linux limpio y preparado solo para tus herramientas de hacking.
+- Burp: añadir una regla “Hostname resolution overrides” con Hostname=objetivo.tld e IP=origen para que todo el tráfico proxificado use esa IP.[^9]
 
-**Configuración de `/etc/hosts` en un Escenario con VPS:**
+## Flujo VPS + portátil (recomendado)
 
-Imagina que descubres que el host `internal.agamemnon.ctfio.com` existe y, haciendo `ping`, descubres que apunta a una IP específica `[DIRECCIÓN_IP_DEL_PING]`.
+- VPS: añadir el FQDN al hosts del VPS para que herramientas CLI (curl, nmap, sqlmap) resuelvan al destino deseado desde una IP pública aislada.[^1]
+- Portátil: añadir el mismo mapeo o usar overrides de Burp para navegar y capturar en proxy sin depender del DNS del sistema.[^9]
 
-Para poder interactuar con este host, necesitas configurar `/etc/hosts` en **DOS sitios**:
+## Limpieza de caché DNS (cuando aplique)
 
-1. **En el VPS:**
+- Linux con systemd-resolved/resolvectl: sudo systemd-resolve --flush-caches o sudo resolvectl flush-caches, y verificar con resolvectl statistics.[^12]
+- macOS (versiones recientes): sudo dscacheutil -flushcache; sudo killall -HUP mDNSResponder.[^14]
+- Windows: ipconfig /flushdns desde consola con privilegios elevados.[^13]
 
-   - Editas `/etc/hosts` en tu VPS para añadir la línea: `[DIRECCIÓN_IP_DEL_PING] internal.agamemnon.ctfio.com`
-   - **¿Por qué?** Para que las herramientas que ejecutas en la terminal del VPS (como `curl`, `nmap`, `gobuster`, `sqlmap`) sepan cómo resolver ese nombre de host y dirigir el tráfico a la IP correcta.
-2. **En tu Portátil Personal:**
+## Consejos y advertencias
 
-   - Editas `/etc/hosts` en tu máquina local (Windows, macOS, Linux) para añadir la misma línea: `[DIRECCIÓN_IP_DEL_PING] internal.agamemnon.ctfio.com`
-   - **¿Por qué?** Para que tu **navegador** sepa cómo llegar al sitio. Esto te permite navegar por la aplicación mientras el tráfico pasa por tu proxy local (Burp Suite, ZAP), que es donde harás la mayor parte del análisis manual.
+- Hacer copia de seguridad antes de editar: sudo cp /etc/hosts /etc/hosts.bak en Unix o guardar una copia del hosts en Windows.[^6]
+- Documentar entradas con comentarios y mantenerlas por proyecto para evitar conflictos y olvidos al cambiar de objetivo.[^6]
+- Recordar que HSTS/SNI y políticas de TLS pueden afectar pruebas si el certificado no coincide con el nombre presentado; en esos casos, preferir --resolve o overrides de Burp para mantener la semántica de nombre.[^9]
+  <span style="display:none">[^16][^18][^20][^22][^24][^26][^28][^30][^32][^34][^36][^38][^40][^41]</span>
 
-**En resumen:** Tu portátil necesita la entrada para el navegador y Burp, y tu VPS la necesita para las herramientas de línea de comandos.
+<div style="text-align: center">Uso de /etc/hosts</div>
 
-### Consejos Prácticos (Pro Tips)
-
-1. **Haz Siempre una Copia de Seguridad:** Antes de editar el fichero, haz una copia: `sudo cp /etc/hosts /etc/hosts.bak`. Si la lías, puedes restaurarlo.
-2. **Usa Comentarios:** Utiliza comentarios (líneas que empiezan con `#`) para documentar por qué añadiste cada entrada. Esto es muy útil cuando tienes mapeos para diferentes proyectos o programas de bug bounty.
-
-   ```
-   # --- Programa Bug Bounty Acme Corp ---
-   10.10.20.5    intranet.acme.com  # Servidor interno descubierto
-   10.10.20.6    dev-portal.acme.com
-   ```
-3. **Sintaxis Correcta:** La sintaxis es simple: `DIRECCION_IP nombredehost1 [nombredehost2 ...]` . Una IP por línea, seguida de uno o más nombres de host separados por espacios o tabulaciones.
-4. **Privilegios de Administrador:** Necesitas privilegios de `sudo` (en Linux/macOS) o de Administrador (en Windows) para editar este fichero.
-5. **Limpiar la Caché DNS (si es necesario):** Aunque los cambios suelen ser inmediatos, en algunos sistemas o situaciones puede ser necesario limpiar la caché de DNS para que los cambios se apliquen.
-
-   - **Windows:** `ipconfig /flushdns`
-   - **macOS:** `sudo dscacheutil -flushcache; sudo killall -HUP mDNSResponder`
-   - **Linux (systemd):** `sudo systemd-resolve --flush-caches`
-
-### Alternativas Modernas para Casos de Uso Específicos
-
-Aunque `/etc/hosts` es fundamental, para pruebas puntuales a veces es más cómodo usar opciones de tus herramientas:
-
-- **`curl --resolve`:** Te permite especificar la resolución para una sola ejecución de `curl`.
-
-  ```bash
-  curl --resolve "ejemplo.com:443:1.2.3.4" https://ejemplo.com/
-  ```
-- **Burp Suite:** En `Project options -> Connections -> Hostname Resolution`, puedes añadir tus propias reglas de resolución que solo afectarán al tráfico que pase por Burp.
+[^1]: https://man7.org/linux/man-pages/man5/nsswitch.conf.5.html
+    
+[^2]: https://curl.se/libcurl/c/CURLOPT_RESOLVE.html
+    
+[^3]: https://www.computernetworkingnotes.com/linux-tutorials/the-etc-hosts-etc-resolv-conf-and-etc-nsswitch-conf-files.html
+    
+[^4]: https://forums.opensuse.org/t/precedence-of-etc-hosts-file/20360
+    
+[^5]: https://bbs.archlinux.org/viewtopic.php?id=280658
+    
+[^6]: https://www.liquidweb.com/blog/edit-host-file-windows-10/
+    
+[^7]: https://www.knownhost.com/blog/how-to-view-a-hosts-file-location-edit/
+    
+[^8]: https://everything.curl.dev/usingcurl/connections/name.html
+    
+[^9]: https://portswigger.net/burp/documentation/desktop/settings/network/dns
+    
+[^10]: https://portswigger.net/burp/documentation/desktop/settings/network/connections
+    
+[^11]: https://www.baeldung.com/linux/dns-cache-local-flushing
+    
+[^12]: https://github.com/systemd/systemd/issues/940
+    
+[^13]: https://kinsta.com/blog/flush-dns/
+    
+[^14]: https://www.freecodecamp.org/news/how-to-flush-dns-on-mac-macos-clear-dns-cache/
+    
+[^15]: 01g-uso-de-etc-hosts.md
+    
+[^16]: https://support.nagios.com/forum/viewtopic.php?t=48478
+    
+[^17]: https://www.linkedin.com/pulse/quick-guide-windows-host-file-location-access-1bytecom-halec
+    
+[^18]: https://www.reddit.com/r/24hoursupport/comments/k8ex8/what_is_the_difference_between_a_hosts_file/
+    
+[^19]: https://stackoverflow.com/questions/38086045/use-curl-resolve-with-http-proxy
+    
+[^20]: https://learn.microsoft.com/en-us/answers/questions/4310469/host-file
+    
+[^21]: https://acquia.my.site.com/s/article/360005257154-Use-cURL-s-resolve-option-to-pin-a-request-to-an-IP-address
+    
+[^22]: https://www.nublue.co.uk/guides/edit-hosts-file/
+    
+[^23]: https://curl.se/docs/manpage.html
+    
+[^24]: https://answers.microsoft.com/en-us/windows/forum/all/host-file/02799272-f9fc-4492-9060-315ed1f3e718
+    
+[^25]: https://man.archlinux.org/man/CURLOPT_RESOLVE.3.en
+    
+[^26]: https://support.norton.com/sp/es/mx/home/current/solutions/v72822654
+    
+[^27]: https://docs.pantheon.io/guides/launch/advanced-curls/
+    
+[^28]: https://discussions.apple.com/thread/255094690
+    
+[^29]: https://macpaw.com/how-to/clear-dns-cache-on-mac
+    
+[^30]: https://www.tp-link.com/es/support/faq/860/
+    
+[^31]: https://help.dreamhost.com/hc/en-us/articles/214981288-Flushing-your-DNS-cache-in-Mac-OS-X-and-Linux
+    
+[^32]: https://www.hoswedaje.com/web/como-hacer-un-flush-dns-en-mac/
+    
+[^33]: https://serveravatar.com/flush-dns-cache-on-any-system/
+    
+[^34]: https://github.com/TechSupportJosh/HostsLoader
+    
+[^35]: https://manage.accuwebhosting.com/knowledgebase/3672/How-to-Flush-DNS-Cache-on-Linux.html
+    
+[^36]: https://mwalkowski.com/post/resolving-hostnames-in-burp-how-to-avoid-editing-the-etc-hosts-file/
+    
+[^37]: https://www.siteground.es/kb/limpiar-cache-local-dns-linux/
+    
+[^38]: https://portswigger.net/burp/documentation/desktop/testing-workflow/mapping/hidden-content/hostname-discovery
+    
+[^39]: https://www.reddit.com/r/kde/comments/106ycil/how_to_i_flush_dns_in_plasma/
+    
+[^40]: https://portswigger.net/burp/documentation/desktop/settings/tools/proxy
+    
+[^41]: https://www.remoteutilities.com/support/kb/how-to-flush-the-dns-resolver-cache-on-windows-macos-and-linux/

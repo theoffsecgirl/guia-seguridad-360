@@ -1,92 +1,159 @@
-# Reconocimiento Activo: Interactuando con el Objetivo
+# Reconocimiento activo: interactuando con el objetivo
 
-A diferencia del reconocimiento pasivo, el **Reconocimiento Activo** implica interactuar directamente con la infraestructura del objetivo. Estas técnicas son más "ruidosas" (pueden ser detectadas por firewalls o sistemas de detección de intrusos), pero a cambio nos proporcionan información mucho más precisa y en tiempo real.
+El reconocimiento activo interactúa con la infraestructura para obtener señales precisas de servicios, tecnologías y superficies vivas, a cambio de mayor detectabilidad y necesidad estricta de respetar alcance y límites de tasa.[^1]
+Antes de ejecutar, revisar políticas del programa; algunos prohíben escaneos agresivos o limitan puertos, rangos y automatización.[^2]
 
-> **⚠️ Advertencia si estas en un programa Bug Bounty:** ¡Ojo con el scope del programa! El escaneo de puertos agresivo y otras técnicas activas pueden estar prohibidas o limitadas en algunos programas de Bug Bounty. Revisa siempre las reglas antes de lanzar cualquier herramienta de reconocimiento activo.
+## Subdominios activos
 
----
+La meta es pasar de “lista teórica” a hosts que resuelven y responden, con resolución, HTTP probing y verificación de vida.[^3]
 
-## Descubrimiento Activo de Subdominios
+- Brute‑forcing y permutaciones
+  - Herramientas: amass enum (activo), gotator/dnsgen para permutaciones, ffuf para vhost brute con Host header.[^5]
+  - Wordlists: listas curadas por tecnología/entorno; mantener tamaño razonable para no disparar ruido.[^4]
+- VHost brute con ffuf (ejemplo)
 
-Podemos buscar subdominios de forma activa para complementar los resultados de las fuentes pasivas.
+```bash
+ffuf -w wordlist.txt -H 'Host: FUZZ.target.com' -u https://target.com -fs 0
+```
 
-### Fuerza Bruta de Subdominios
+Este patrón prueba virtual hosts en la misma IP cambiando Host, útil cuando DNS no expone todos los nombres.[^4]
 
-Esta técnica consiste en utilizar diccionarios para intentar "adivinar" subdominios válidos.
+- Resolución y filtro de wildcard
+  - dnsx soporta A/AAAA/CNAME/PTR/NS/MX/TXT/SRV/SOA, resolvers TCP/UDP/DoH/DoT y manejo de wildcard para reducir falsos positivos.[^7]
 
-* **Herramientas Comunes:** `subfinder`, `assetfinder`, `amass enum`, `massdns`, y `ffuf` para fuerza bruta de VHosts.
-* **Wordlists Esenciales:** Se recomienda usar listas de calidad como las de SecLists (ej. `Subdomains/top1mil-110000.txt`).
-* **Ejemplo con `ffuf` (VHost Brute-Forcing):**
-  ```bash
-  ffuf -w wordlist.txt -H "Host: FUZZ.target.com" -u [https://target.com](https://target.com)
-  ```
+```bash
+dnsx -l subs.txt -silent -a -aaaa -cname -retries 2 -o resolved.txt
+```
 
-### Permutation Scanning
+- HTTP probing y fingerprint
+  - Con httpx, obtener estado, títulos y tecnologías para priorizar endpoints útiles.[^3]
 
-Consiste en generar posibles subdominios alterando los que ya conocemos (ej. si encuentras `dev-api.target.com`, la herramienta prueba variaciones como `test-api.target.com`).
+```bash
+httpx -l resolved.txt -silent -status-code -title -tech-detect -json -o httpx.json
+```
 
-* **Herramientas Comunes:** `gotator`, `dnsgen`.
+## Escaneo de puertos y servicios
 
-### Validación y Resolución
+Objetivo: identificar servicios más allá de web (SSH, DBs, RDP, etc.) con estrategia de dos pasos: descubrimiento rápido y enumeración profunda.[^1]
 
-Una vez generada una lista grande de posibles subdominios, es crucial verificar cuáles están realmente "vivos" y resuelven a una IP.
+- Paso 1: descubrimiento rápido (grandes rangos)
+  - masscan envía SYN a alta velocidad y detecta puertos abiertos; controlar --rate y limitar puertos para cumplir políticas.[^8]
 
-* **Herramientas Comunes:** `dnsx`, `massdns` y, para probar también conectividad web (HTTP/S), `httpx`.
+```bash
+masscan -p80,443,8080,22,445 203.0.113.0/24 --max-rate 2000 -oL m.out
+```
 
----
+- Paso 2: enumeración profunda (targets abiertos)
+  - Nmap con -sS -sV -sC sobre los puertos hallados para versión y scripts “safe”; ajustar timing (-T3) y reintentos para no disparar IDS.[^1]
 
-## Escaneo de Puertos y Servicios
+```bash
+grep open m.out | awk '{print $4}' | sort -u > alive.txt
+nmap -sS -sV -sC -p22,80,443,445,8080 -iL alive.txt -T3 -oN enum.txt
+```
 
-Esta técnica permite identificar qué servicios se están ejecutando en los servidores, más allá de los puertos web. Descubrir un puerto FTP, SSH o una base de datos expuesta puede abrir una nueva vía de ataque.
+- UDP selectivo
+  - Probar UDP solo en puertos probables (DNS 53, SNMP 161, NTP 123) por coste y falsos positivos; confirmar con consultas específicas de protocolo.[^1]
 
-* **Herramientas Clave:** `nmap` y `masscan`.
+## Fingerprinting de tecnologías
 
-### Ejemplos Prácticos con `nmap`
+- Cabeceras y contenido
+  - Revisar Server, X‑Powered‑By, Set‑Cookie y rutas o comentarios reveladores; combinar con titles y tech‑detect de httpx.[^3]
+- Favicon hashing y patrones
+  - El hash del favicon puede correlacionarse con stacks conocidos; usar junto con títulos y headers para priorizar apps y paneles.[^3]
+- Herramientas complementarias
+  - whatweb/Wappalyzer para identificación por firmas; integrar tras httpx para evitar tocar hosts no vivos.[^3]
 
-`nmap` es la navaja suiza para el escaneo de puertos.
+## Alternativas y soporte
 
-* **Escaneo Básico y Potente:** Detecta versiones y ejecuta scripts básicos.
+- dnsx (PD) para resolución masiva con wildcard‑aware y múltiples resolvers, ideal tras permutaciones y antes de httpx.[^6]
+- assetfinder para dominios y subdominios relacionados (pasivo+rápido), útil como semilla antes de activo.[^11]
 
-  ```bash
-  nmap -sV -sC -T4 <IP_o_HOST>
-  ```
+## Pipelines listos
 
-  * `-sV`: Detección de versiones de los servicios.
-  * `-sC`: Ejecuta scripts de enumeración por defecto.
-  * `-T4`: Acelera el escaneo (puede ser más detectable).
-* **Escaneo de Todos los Puertos TCP:** Para un análisis exhaustivo.
+- De subdominios a servicios
 
-  ```bash
-  nmap -p- <IP_o_HOST>
-  ```
-* **Escaneo de Puertos UDP:** Más lento, pero puede revelar servicios DNS o SNMP.
+```bash
+# 1) Semilla pasiva (assetfinder) y dedupe
+assetfinder --subs-only ejemplo.com | sort -u > subs.txt
+# 2) Resolución activa (dnsx) con gestión de wildcard
+dnsx -l subs.txt -silent -a -cname -retries 2 -o hosts.txt
+# 3) Probing web (httpx) y tecnologías
+httpx -l hosts.txt -silent -status-code -title -tech-detect -json -o httpx.json
+# 4) Puertos alternativos con masscan + nmap
+masscan -p3000,5000,8000,8080,8443,8888,9000 -iL hosts.txt --max-rate 2000 -oL m2.out
+grep open m2.out | awk '{print $4}' | sort -u > ip2.txt
+nmap -sS -sV -sC -p3000,5000,8000,8080,8443,8888,9000 -iL ip2.txt -T3 -oN alt.txt
+```
 
-  ```bash
-  nmap -sU -p 53,161 <IP_o_HOST>
-  ```
+- VHost brute en un único host
 
-### Escaneo Rápido con `masscan`
+```bash
+ffuf -w vhosts.txt -H 'Host: FUZZ.target.com' -u https://target.com -mc all -fw 0
+```
 
-`masscan` es extremadamente rápido para escanear grandes rangos de IPs en busca de puertos específicos.
+Permite descubrir sitios virtuales no listados en DNS sirviendo desde la misma IP.[^4]
 
-* **Ejemplo:**
-  ```bash
-  masscan -p80,443,8080 <RANGO_IP> --rate=1000
-  ```
+## Buenas prácticas
 
----
+- Ajustar timing y límites: usar -T3 en nmap, --max-rate en masscan y wordlists razonables en ffuf para no gatillar bloqueos tempranos.[^8]
+- Verificar “vida real”: no basta con resolver DNS; validar HTTP, códigos, tamaños y títulos para evitar perder tiempo en hosts señuelo o aparcados.[^3]
+- Registrar comandos y timestamps: imprescindible para reproducibilidad y para responder a triage si se requiere detalle de metodología.[^1]
 
-## Fingerprinting de Tecnologías y Servicios
+## Recordatorio de alcance
 
-Una vez identificados los puertos abiertos, necesitamos saber qué software y versión se está ejecutando.
+Muchos programas aceptan enumeración y probing ligero, pero restringen barridos de puertos masivos y UDP; leer política y, ante duda, reducir tasa y limitar a hosts confirmados web.[^2]
+<span style="display:none">[^13][^15][^17][^19][^21][^23][^25][^26]</span>
 
-* **Técnicas Manuales:**
-  * **Análisis de Cabeceras HTTP:** Cabeceras como `Server`, `X-Powered-By`, o `Set-Cookie` pueden revelar el servidor web, el lenguaje y el framework.
-  * **Análisis de Contenido Web:** Patrones en el HTML, comentarios o rutas (`/wp-content/`) delatan la tecnología.
-  * **Favicon Hashing:** Comparar el hash del favicon de la web con bases de datos de hashes conocidos para identificar tecnologías.
-* **Herramientas Automatizadas:**
-  * **`httpx`:** Puede realizar fingerprinting tecnológico de forma masiva. El siguiente comando es un ejemplo de un pipeline completo:
-    ```bash
-    cat subdominios.txt | httpx -tech-detect -status-code -title -silent
-    ```
-  * **Otras Herramientas:** `whatweb`, Wappalyzer (extensión y CLI), y `nuclei` con plantillas de detección.
+<div style="text-align: center">Reconocimiento activo: interactuando con el objetivo</div>
+
+[^1]: https://www.ceos3c.com/security/nmap-tutorial-series-1-nmap-basics/
+    
+[^2]: https://nmap.org/book/performance.html
+    
+[^3]: https://docs.projectdiscovery.io/tools/httpx/running
+    
+[^4]: https://github.com/ffuf/ffuf
+    
+[^5]: https://github.com/OWASP/Amass/wiki/User-Guide
+    
+[^6]: https://github.com/projectdiscovery/dnsx
+    
+[^7]: https://docs.projectdiscovery.io/tools/dnsx
+    
+[^8]: https://github.com/robertdavidgraham/masscan
+    
+[^9]: https://docs.projectdiscovery.io/tools/dnsx/running
+    
+[^10]: https://www.kali.org/tools/assetfinder/
+    
+[^11]: https://github.com/tomnomnom/assetfinder
+    
+[^12]: 02c-reconocimiento-activo.md
+    
+[^13]: https://github.com/OctaYus/Wordlists
+    
+[^14]: https://www.kali.org/tools/ffuf/
+    
+[^15]: https://github.com/sw33tLie/uff
+    
+[^16]: https://gist.github.com/santosadrian/6c8f03f893154ec6575d84fe705c44fe
+    
+[^17]: https://dev.to/vabro/how-to-install-assetfinder-tool-on-any-linunx-distro-353d
+    
+[^18]: https://es.linkedin.com/posts/kike-gandia-27576416a_github-ffufffuf-fast-web-fuzzer-written-activity-7180960072192188417-4pnx
+    
+[^19]: https://book.h4ck.cl/metodologia-y-fases-de-hacking-etico/recopilacion-activa-de-informacion/ffuf
+    
+[^20]: http://ffuf.me/install
+    
+[^21]: https://docs.projectdiscovery.io/tools/dnsx/usage
+    
+[^22]: https://github.com/AdVdTools/AssetFinder
+    
+[^23]: https://github.com/Invicti-Security/brainstorm
+    
+[^24]: https://docs.projectdiscovery.io/opensource/dnsx/install
+    
+[^25]: https://github.com/zyairelai/subsubsui
+    
+[^26]: https://pkg.go.dev/github.com/projectdiscovery/dnsx/libs/dnsx

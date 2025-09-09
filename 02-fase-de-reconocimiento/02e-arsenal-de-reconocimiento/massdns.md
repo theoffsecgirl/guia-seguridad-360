@@ -1,99 +1,169 @@
-# Introducción a `massdns`
+# Introducción a massdns
 
-Después de usar herramientas como `subfinder`, `amass` o `crt.sh` para obtener una lista masiva de posibles subdominios, el siguiente paso crucial es la **resolución DNS**. Este proceso consiste en verificar qué subdominios de esa lista están "vivos", es decir, tienen registros DNS válidos y resuelven a una dirección IP.
+MassDNS es un resolvedor DNS de alto rendimiento pensado para validar listas enormes de dominios/subdominios en paralelo, filtrando rápidamente cuáles resuelven y a qué registros, ideal tras la fase de enumeración pasiva/activa.[^2]
+Este paso depura ruido y deja un set de objetivos reales sobre los que continuar con HTTP probing o escaneos, reduciendo costes y falsos positivos posteriores.[^1]
 
-Este paso nos permite filtrar el ruido (subdominios que ya no existen o nunca existieron) y quedarnos con una lista de objetivos reales sobre los que continuar nuestro análisis.
+## Instalación
 
-### Interpretando Códigos de Respuesta DNS
-
-Cuando intentas resolver un dominio, el servidor DNS te devuelve un código de estado. Entender los más comunes es útil:
-
-- **`NOERROR`**:
-  - **Significado:** La consulta se procesó correctamente. Esto **no** significa que se encontró un registro, sino que el servidor pudo confirmar con autoridad que el registro existe o no existe. Si hay una respuesta (una IP), el dominio está vivo. Si no hay respuesta pero el código es `NOERROR`, significa que el dominio existe pero no tiene un registro del tipo que pediste (e.g., pediste un registro `A` y solo tiene `CNAME` o `MX`).
-  - **Acción:** ¡Objetivo válido! Incluir en la lista de activos a investigar.
-- **`NXDOMAIN`** (Non-Existent Domain):
-  - **Significado:** El dominio o subdominio que has consultado no existe en el sistema DNS. Es una respuesta definitiva.
-  - **Acción:** Descartar este subdominio de tu lista de objetivos activos. Es ruido.
-- **`SERVFAIL`** (Server Failure):
-  - **Significado:** El servidor DNS tuvo un problema interno y no pudo procesar tu petición. No es un "no" definitivo como `NXDOMAIN`.
-  - **Acción:** Puede ser un fallo temporal del resolvedor o un problema con el servidor de nombres del dominio. Podrías intentar resolverlo de nuevo más tarde o con un conjunto de resolvedores DNS diferente. A veces puede ser un indicio de algo interesante (o simplemente de una infraestructura mal mantenida).
-- **`REFUSED`**:
-  - **Significado:** El servidor DNS recibió tu petición pero se negó a responder.
-  - **Acción:** Esto suele ocurrir por políticas de seguridad. Puede que estés consultando un servidor DNS interno que no responde a peticiones externas, o que tu IP haya sido bloqueada por un firewall o un sistema de reputación.
-
-### El Flujo de Trabajo: Enumeración -> Resolución
-
-El proceso lógico siempre es en dos pasos:
-
-1. **Enumeración:** Generar la lista de posibles subdominios.
-2. **Resolución:** Filtrar esa lista para encontrar los que están vivos.
-
-**Paso 1: Enumerar Subdominios con `subfinder`** El objetivo aquí es crear nuestro listado inicial. El comando que pusiste estaba un poco mezclado, la forma correcta de usar `subfinder` para generar la lista es así:
+- Compilación desde el repositorio oficial
 
 ```bash
-# El dominio raíz es el único input necesario para -d
-# Guardamos la salida en un archivo de texto para el siguiente paso.
-subfinder -d spotify.com -all -silent -o spotify_subs_encontrados.txt
+git clone https://github.com/blechschmidt/massdns
+cd massdns && make
 ```
 
-- `-d spotify.com`: Especificamos el dominio raíz a investigar.
-- `-all`: Usamos todas las fuentes, incluyendo las que necesitan API keys (que deberías tener configuradas para mejores resultados).
-- `-silent`: Para una salida limpia, solo los subdominios.
-- `-o spotify_subs_encontrados.txt`: Guardamos la lista en un archivo.
+- Paquetes conocidos
+  - Kali Linux: paquete massdns disponible en repos de herramientas.[^3]
+  - Homebrew (macOS/Linux): fórmula “massdns” para instalación rápida.[^4]
 
-Ahora tenemos un archivo `spotify_subs_encontrados.txt` lleno de posibles subdominios.
+## Requisitos: resolvers
 
-**Paso 2: Resolver la Lista de Subdominios** Aquí es donde entran herramientas como `massdns` o `httpx`.
+- Usa una lista de resolvers DNS fiable y actualizada, ya que la incluida en el repositorio está desactualizada y muchos resolvers pueden fallar o no ser de confianza.[^2]
+- Recomendación: emplear listas “fresh resolvers” actualizadas de forma horaria y validadas automáticamente para mejorar tasa de aciertos y estabilidad.[^5]
 
-### Herramientas para la Resolución Masiva
+## Flujo lógico: enumeración → resolución
 
-#### `massdns` (Para Resolución DNS Pura y Rápida)
+- Enumeración: genera la lista de candidatos con subfinder, amass o CT logs antes de resolver, guardando un dominio por línea para procesado eficiente.[^1]
+- Resolución: pasa ese listado por massdns para confirmar registros válidos y separar NXDOMAIN/SERVFAIL del conjunto útil de objetivos.[^1]
 
-`massdns` es una herramienta extremadamente rápida diseñada para hacer un gran número de consultas DNS de forma paralela. Es ideal si solo te interesa saber qué subdominios resuelven a una IP, sin importar si tienen un servidor web o no.
+## Códigos DNS clave y qué hacer
 
-**Requisitos:** Necesitas una lista de resolvedores DNS públicos y fiables. Puedes encontrar listas actualizadas en repositorios de GitHub (busca "fresh dns resolvers"). Guárdala en un archivo, por ejemplo, `resolvers.txt`.
+- NOERROR: respuesta válida del punto de vista del servidor; puede devolver datos o NODATA si el tipo consultado no existe para ese nombre, por lo que conviene verificar si hay answers antes de clasificar como vivo.[^1]
+- NXDOMAIN: el nombre no existe; descartar del set activo a menos que haya un error de entrada o wildcard que debas gestionar.[^1]
+- SERVFAIL/REFUSED: error del servidor o política que rechaza la consulta; reintentar con otros resolvers o más tarde, y tomarlo como señal a vigilar sin concluir.[^1]
+- massdns permite filtrar/ignorar por códigos de respuesta para producir salidas más limpias y centradas en lo útil.[^2]
 
-**Comando de Ejemplo:**
+## Uso básico
+
+- Resolver A/AAAA y volcar en NDJSON (líneas JSON)
 
 ```bash
-massdns -r resolvers.txt -t A -o J -w resultados_massdns.json lista_de_subdominios.txt
+massdns -r resolvers.txt -t A -o J -w resultados.jsonl dominios.txt
 ```
 
-- `-r resolvers.txt`: Especifica el archivo con la lista de resolvedores DNS a usar.
-- `-t A`: Pide los registros de tipo `A` (direcciones IPv4). También puedes usar `AAAA` (IPv6), `CNAME`, `MX`, etc.
-- `-o J`: Formatea la salida en JSON (líneas de objetos JSON). Muy útil para procesar después.
-- `-w resultados_massdns.json`: Guarda la salida en el archivo especificado.
-- `lista_de_subdominios.txt`: El archivo de entrada que generamos con `subfinder`.
+Este comando usa resolvers personalizados, consulta registros A y escribe NDJSON, óptimo para procesado con jq o pipelines posteriores.[^2]
 
-**Procesando la Salida de `massdns`:** Si usaste `-o J`, tendrás un archivo JSON. Puedes usar `jq` para parsearlo y limpiarlo.
+- Ejemplos con otros tipos
 
 ```bash
-# Extraer solo los nombres de dominio que resolvieron correctamente
-cat resultados_massdns.json | jq -r '.name' | sed 's/\.$//' | sort -u > subs_resueltos.txt
-
-# Extraer el dominio y su IP
-cat resultados_massdns.json | jq -r '"\(.name) \(.data.answers[0].data)"' 2>/dev/null | sed 's/\.$//' > subs_con_ip.txt
+massdns -r resolvers.txt -t AAAA -o J -w v6.jsonl dominios.txt
+massdns -r resolvers.txt -t CNAME -o J -w cname.jsonl dominios.txt
+massdns -r resolvers.txt -t MX -o J -w mx.jsonl dominios.txt
 ```
 
-- `jq -r '.name'`: Extrae el valor del campo "name" de cada objeto JSON.
-- `sed 's/\.$//'`: `massdns` a veces añade un punto al final del dominio, esto lo quita.
-- `sort -u`: Ordena y elimina duplicados.
+La bandera -t controla el tipo de registro por consulta, permitiendo pivotes por correo o alias según necesidad.[^2]
 
-#### `httpx` (Para Resolución y Comprobación de Servidores Web)
+## Parsing a escala (NDJSON)
 
-Si tu objetivo final es atacar aplicaciones web, `httpx` es a menudo más práctico porque combina la resolución DNS con una comprobación (probe) de si hay un servidor HTTP/HTTPS escuchando.
-
-**Comando de Ejemplo:**
+- Extraer nombres que resolvieron y normalizar el punto final
 
 ```bash
-cat lista_de_subdominios.txt | httpx -silent -o hosts_web_vivos.txt
+jq -r '.name' resultados.jsonl | sed 's/\.$//' | sort -u > subs_resueltos.txt
 ```
 
-Este simple comando hace lo siguiente:
+Este patrón produce una lista única de FQDN con resolución confirmada, lista para HTTP probing o correlaciones posteriores.[^1]
 
-1. Lee la lista de subdominios.
-2. Para cada uno, intenta resolver su IP.
-3. Si resuelve, intenta conectarse a los puertos web comunes (80, 443, 8080, etc.).
-4. Si un servidor web responde, guarda la URL viva (con `http://` o `https://`) en el archivo de salida.
+- Evitar “slurp” con ficheros grandes
 
-`httpx` es una forma increíblemente eficiente de pasar de una lista enorme de posibles subdominios a una lista manejable de aplicaciones web activas listas para un análisis más profundo.
+```bash
+# ejemplo simple de streaming por línea (sin -s) para no cargar todo en memoria
+jq -r 'select(.resp_type=="A") | "\(.name) \(.data)"' resultados.jsonl | sed 's/\.$//' > nombre_ip.txt
+```
+
+Con input masivo conviene procesar línea a línea en NDJSON para no agotar memoria, usando selectores y evitando -s/--slurp salvo que sea imprescindible.[^7]
+
+## Buenas prácticas de rendimiento
+
+- Ajustar concurrencia y “interval” para no saturar autoritativos: parámetros como -s (hashmap-size), --socket-count, --processes y -i (interval ms) ayudan a controlar carga y estabilidad.[^2]
+- Sé conservador con la tasa y el tamaño de wordlists cuando hagas brute force directo de subdominios, empleando scripts incluidos como subbrute.py/ct.py con responsabilidad.[^2]
+
+## Wildcard y filtrado
+
+- El wildcard DNS puede hacer que “todo resuelva” y contamine resultados; usa herramientas que integran filtrado de wildcard como shuffledns o pipelines que verifiquen respuestas contra nombres aleatorios para descartar comodines.[^9]
+- Al validar resultados, prioriza registros coherentes con los NS/autoridad y descarta respuestas sospechosas de resolvers problemáticos, ayudándote de la información de resolver incluida en salidas de massdns cuando sea relevante.[^2]
+
+## Pipeline recomendado
+
+- Pasivo → massdns → HTTP
+
+```bash
+# 1) Enumeración pasiva
+subfinder -d ejemplo.com -silent -all > subs.txt
+# 2) Resolución masiva con massdns (A)
+massdns -r resolvers.txt -t A -o J -w a.jsonl subs.txt
+jq -r 'select(.resp_type=="A") | .name' a.jsonl | sed 's/\.$//' | sort -u > vivos_dns.txt
+# 3) HTTP probing y fingerprint
+httpx -l vivos_dns.txt -silent -status-code -title -tech-detect -json -o httpx.json
+```
+
+Este pipeline depura candidatos a subdominios con resolución efectiva y obtiene estado/título/tecnologías para priorizar con bajo ruido y evidencia reproducible.[^1][^2]
+
+## Trucos útiles
+
+- NDJSON con fallos terminales: añade la flag “e” en -o J para registrar errores terminales por consulta y depurar mejor resolvers o dominios problemáticos.[^2]
+- PTR masivo: el script scripts/ptr.py genera las consultas invertidas .in-addr.arpa para alimentar directamente a massdns en modo PTR, útil para mapeo inverso controlado.[^2]
+- Salidas alternativas: -o S/F para texto simple o detallado, y -o L para volcar solo lista de dominios con opciones avanzadas como incluir NOERROR sin answers si interesa un inventario más completo.[^2]
+
+## Alternativas y wrappers
+
+- shuffledns: wrapper en Go que usa massdns para validar subdominios y hace brute force con filtrado de wildcard integrado, agilizando pipelines activos con menor tasa de falsos positivos.[^8]
+- Integración con ecosistema: combinar massdns con generadores de permutaciones y validadores pasivos/activos mejora cobertura y precisión sin multiplicar ruido innecesario.[^9]
+
+## Checklist rápido
+
+- ¿Lista de resolvers fresca y validada antes de lanzar consultas masivas para minimizar errores y tiempos muertos?[^5]
+- ¿Salida NDJSON parseada sin slurp y con filtros claros por tipo/answer para trabajar a escala sin agotar memoria?[^6]
+- ¿Wildcard gestionado con verificación aleatoria o wrappers que filtran, evitando datasets inflados?[^8]
+- ¿Pipeline hacia httpx para quedarte solo con superficie web viva y priorizable por título/código/tecnología?[^10]
+
+## Definition of Done (DoD)
+
+- Conjunto de subdominios resueltos con evidencia mínima (registro/tipo/IP) listo para probing HTTP o escaneo selectivo, sin entries espurias por wildcard o resolvers defectuosos.[^1]
+- Scripts/mandatos y timestamps archivados para reproducibilidad, con resolvers utilizados y parámetros de concurrencia/interval documentados para futura auditoría.[^2]
+  <span style="display:none">[^12][^14][^16][^18][^20][^22]</span>
+
+<div style="text-align: center">Introducción a massdns</div>
+
+[^1]: massdns.md
+    
+[^2]: https://github.com/blechschmidt/massdns
+    
+[^3]: https://www.kali.org/tools/massdns/
+    
+[^4]: https://formulae.brew.sh/formula/massdns
+    
+[^5]: https://github.com/proabiral/Fresh-Resolvers
+    
+[^6]: https://stackoverflow.com/questions/55499300/handle-a-very-large-input-file-without-slurp
+    
+[^7]: https://www.linode.com/docs/guides/using-jq-to-process-json-on-the-command-line/
+    
+[^8]: https://github.com/projectdiscovery/shuffledns
+    
+[^9]: https://sidxparab.gitbook.io/subdomain-enumeration-guide/active-enumeration/dns-bruteforcing
+    
+[^10]: https://docs.projectdiscovery.io/tools/httpx
+    
+[^11]: https://github.com/topics/massdns
+    
+[^12]: https://github.com/Den1al/pymassdns
+    
+[^13]: https://hayageek.com/massdns-tutorial-dns-resolver-for-bulk-lookups-reconnaissance/
+    
+[^14]: https://www.geeksforgeeks.org/linux-unix/massdns-high-performance-dns-stub-resolver-tool/
+    
+[^15]: https://stackoverflow.com/questions/49342129/jq-to-output-results-as-json
+    
+[^16]: https://codesandbox.io/p/github/tehmasta/resolvers/resolvers.txt
+    
+[^17]: https://github.com/topics/massdns?l=jupyter+notebook\&o=desc\&s=forks
+    
+[^18]: https://www.net.in.tum.de/fileadmin/TUM/NET/NET-2024-09-1/NET-2024-09-1_07.pdf
+    
+[^19]: https://osintteam.blog/do-you-struggle-finding-internal-hidden-subdomains-recon-part-5-b06c99a11364
+    
+[^20]: https://github.com/topics/bulk-dns
+    
+[^21]: https://www.github-zh.com/topics/dns-resolver
+    
+[^22]: https://navendu.me/posts/jq-interactive-guide/

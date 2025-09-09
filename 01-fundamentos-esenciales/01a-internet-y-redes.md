@@ -1,75 +1,208 @@
-### 1. ¿Qué es Internet? ¿Qué es la Web?
+# Internet y redes (pentesting)
 
-- **Internet:** Conjunto masivo de redes interconectadas globalmente, permitiendo la comunicación y el intercambio de datos entre dispositivos.
-- **World Wide Web (WWW o "la Web"):** Es un servicio que corre sobre Internet. Se refiere a los sitios web (documentos HTML, imágenes, etc.) interconectados mediante hipervínculos y accesibles a través de navegadores y servidores web.
+## Internet vs Web
 
-### 2. ¿Qué es una red?
+- Internet: red de redes basada en TCP/IP que transporta tráfico de múltiples servicios (DNS, correo, SSH, VoIP, P2P, etc.).
+- Web (WWW): solo uno de esos servicios, accesible vía HTTP/HTTPS con URLs, navegadores y servidores; no es sinónimo de Internet.
 
-- Un sistema de dispositivos (ordenadores, servidores, móviles, etc.) interconectados que comparten recursos o datos.
+Puntos ofensivos
 
-**Tipos comunes de redes:**
+- Muchas superficies críticas no son “web” (DNS, correo, VPN, buckets, Git/SSH). Mapear servicios por puerto/protocolo, no solo vhosts.
+
+## Qué es una red
+
+- Conjunto de dispositivos que comparten un medio (cable, Wi‑Fi) y protocolos para intercambiar datos.
+
+Tipos y relevancia
 
 
-| Tipo | Descripción                                               | Relevancia en Auditorías                                                       |
-| :--- | :--------------------------------------------------------- | :------------------------------------------------------------------------------ |
-| LAN  | Local Area Network. Red pequeña (casa, oficina pequeña). | Objetivo tras acceso inicial (pivotar, descubrimiento de más equipos).         |
-| WLAN | Wireless LAN. LAN basada en Wi-Fi.                         | Vector de entrada común (ataques WPA/WPA2/WPA3, portales cautivos, Rogue APs). |
-| WAN  | Wide Area Network. Redes de mayor escala interconectadas.  | Comprender exposición de una organización en Internet.                        |
+| Tipo    | Descripción                        | Relevancia en auditorías                        |
+| :------ | :---------------------------------- | :----------------------------------------------- |
+| PAN     | Personal (dispositivos cercanos)    | Exfil local, tethering, Bluetooth/Hotspot.       |
+| LAN     | Local (casa/oficina)                | Pivot tras acceso inicial, descubrimiento L2/L3. |
+| WLAN    | LAN inalámbrica (Wi‑Fi)           | WPA/WPA2/WPA3, Evil Twin, portales cautivos.     |
+| VLAN    | LAN lógica segmentada              | Saltos entre segmentos, mal etiquetado/trunking. |
+| MAN/WAN | Redes de área metropolitana/amplia | Exposición, latencias, SD‑WAN, rutas a cloud.  |
+| VPN     | Túneles cifrados                   | Split‑tunnel, fuga de rutas/DNS.                |
 
-### 3. Topología de red
+Conceptos críticos
 
-- **Topología estrella:** Dispositivos conectados a un nodo central (switch o router).
+- Segmentación: VLAN/ACL/Firewall/DMZ para limitar movimiento lateral.
+- NAT/PAT/CGNAT: traducción de direcciones (impacta en rastreo y atribución).
+- SD‑WAN: políticas dinámicas; ojo a orquestadores expuestos.
 
-  ![1749675394439](images/internet-y-redes-para-pentesting/1749675394439.png)
-- El **router** actúa como `gateway` que conecta la red local al ISP.
+## Topologías y componentes
 
-**Punto Clave (Ofensiva):**
+- Topologías: estrella (habitual), malla (alta disponibilidad), árbol (jerárquica).
+- Componentes: switch (L2), switch L3, router/gateway, AP, firewall, IDS/IPS, proxy.
+- DMZ: zona expuesta (web, SMTP, VPN); objetivo común para pivot al interior.
+
+Ofensiva (rápido)
 
 ```bash
-# Escaneo de red interna
+# Descubrimiento L2 (ARP) en segmento actual
+sudo arp-scan -l
+
+# Ping sweep L3 (descubrimiento básico)
 nmap -sn 192.168.1.0/24
+
+# Servicios y versiones (cuidado con ruido)
+nmap -sS -sV -T3 -Pn -p- 192.168.1.0/24
 ```
 
-Permite descubrir dispositivos activos, servicios y vulnerabilidades potenciales (movimiento lateral).
+Notas
 
-### 4. ¿Qué es una Dirección IP?
+- ARP solo ve tu broadcast domain (no cruza VLANs).
+- Port mirroring/Hub: si existe, MITM es trivial; si no, usar técnicas activas (ARP spoof) solo en laboratorio.
 
-- Identificador numérico único para dispositivos en una red.
+## Direcciones IP
 
-**Versiones:**
+- IPv4: 32 bits (ej. 192.168.1.10).
+- IPv6: 128 bits (ej. 2001:db8::1), abundan direcciones link‑local (fe80::/10).
 
-- **IPv4:** `192.168.1.10`
-- **IPv6:** `2001:0db8:85a3:0000:0000:8a2e:0370:7334`
-
-**IP privada vs pública:**
+CIDR y rangos útiles
 
 
-| Tipo     | Uso                           | Rango Común (IPv4)                             |
-| :------- | :---------------------------- | :---------------------------------------------- |
-| Privada  | Redes locales (no enrutable). | `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16` |
-| Pública | Acceso global en Internet.    | Cualquier otra dirección no reservada          |
+| Tipo        | IPv4                                      | IPv6          | Notas                                  |
+| :---------- | :---------------------------------------- | :------------ | :------------------------------------- |
+| Privadas    | 10.0.0.0/8; 172.16.0.0/12; 192.168.0.0/16 | ULA: fd00::/8 | No enrutan en Internet.                |
+| Link‑Local | 169.254.0.0/16                            | fe80::/10     | Sin DHCP/ruta, útil en diagnósticos. |
+| Loopback    | 127.0.0.0/8                               | ::1           | Pruebas locales.                       |
+| Multicast   | 224.0.0.0/4                               | ff00::/8      | Descubrimiento/servicios.              |
 
-### 5. Protocolos clave en redes locales
+Cálculo rápido
 
-#### ARP (Address Resolution Protocol)
+- Hosts en /24: $2^{32-24} - 2 = 254$.
+- Cambia 24 por la máscara para otras redes.
 
-Mapea direcciones IP a MAC en redes locales.
+Inventario local
 
-**Ataques comunes:**
+```bash
+ip addr; ip route; ip neigh
+nslookup example.com; dig +short A example.com
+traceroute 8.8.8.8
+```
 
-- **ARP Spoofing / Poisoning:** Redirección del tráfico para Man-in-the-Middle (MitM).
+## Protocolos clave en redes locales
 
-**Herramientas:**
+### ARP (Address Resolution Protocol)
 
-- `arpspoof`
-- `ettercap`
-- `bettercap`
+- Mapea IP→MAC en L2; imprescindible para comunicación local.
 
-#### DHCP (Dynamic Host Configuration Protocol)
+Ataques
 
-Asignación automática de IPs y parámetros de red.
+- ARP Spoof/Poison: MITM, sniffing, secuestro de sesión.
 
-**Ataques comunes:**
+Mitigación (defensiva)
 
-- **DHCP Spoofing:** Servidor DHCP falso para redirigir tráfico.
-- **DHCP Starvation:** Agotar el pool de IPs disponibles provocando denegación de servicio.
+- DAI (Dynamic ARP Inspection), ARP cache estática en entornos críticos, segmentación.
+
+Herramientas
+
+- bettercap, ettercap, arpspoof, arpwatch.
+
+### DHCP (Dynamic Host Configuration Protocol)
+
+- Asigna IP, gateway, DNS, máscara.
+
+Ataques
+
+- DHCP Spoofing: gateway/DNS malicioso para redirección.
+- DHCP Starvation: agotamiento del pool → DoS.
+
+Mitigación
+
+- DHCP Snooping, IP Source Guard, puertos de confianza en switches.
+
+### DNS (Domain Name System)
+
+- Traduce nombres a IP (y más: MX, TXT, SRV).
+
+Ataques
+
+- Cache poisoning, subdominio huérfano, NXDOMAIN hijack, exfil por DNS.
+
+Práctica
+
+```bash
+dig A api.objetivo.com
+dig ANY objetivo.com @ns-autoritativo
+dig -x 192.0.2.123   # PTR
+```
+
+### ICMP
+
+- Diagnóstico (echo, time‑exceeded). Filtrado frecuente en perímetros.
+
+Uso ofensivo
+
+- Descubrimiento básico; tunelización en laboratorios.
+
+### HTTP/HTTPS y TLS (apunte)
+
+- La Web viaja sobre TCP (y HTTP/2 multiplexado). CDN/edge afecta cache/headers.
+- Señales de parsing (CL/TE, h2) abren puerta a desync/smuggling (tratar en capítulo web).
+
+## Wi‑Fi (WLAN) en dos líneas
+
+- WPA2‑PSK/WPA3, ataques a handshakes/PMKID (laboratorio).
+- Rogue AP/Evil Twin y portales cautivos para captura de credenciales (solo en entorno controlado).
+
+## Checklist de reconocimiento de red (rápido)
+
+- Identificar segmento local (ip addr) y gateway/máscara (ip route).
+- Enumerar hosts (arp-scan/nmap -sn) y priorizar por TTL/latencia/puertos abiertos.
+- Clasificar por sistema/servicio (nmap -sV) con cautela en producción.
+- Revisar resolución y dependencias (DNS, mDNS/SSDP/LLDP).
+- Registrar todo en notas con timestamps para reproducibilidad.
+
+## Mini‑labs sugeridos (seguro y legal)
+
+- MITM controlado entre dos VMs en una red NAT de VirtualBox usando bettercap; observar ARP y tráfico HTTP de Juice Shop.
+- DHCP spoof en laboratorio con dnsmasq y detección con DHCP Snooping simulado.
+- Mapear una red /24 de VMs, etiquetar sistemas por fingerprint y preparar un plan de hardening básico (defensiva cruza con ofensiva).
+
+## Snippets útiles
+
+```bash
+# Barrido rápido con tamaños de respuesta (detección de "404/200 falsos")
+for h in $(cat hosts.txt); do curl -skI https://$h/ | awk 'NR==1{print FILENAME,$0}' FILENAME=$h; done
+
+# Detección de IPv6 locales
+ip -6 addr | grep -E 'inet6 (fd|fe80)'
+
+# DNS rápido (A/AAAA) en lote
+while read d; do echo -n "$d "; dig +short A $d | head -n1; done < dominios.txt
+```
+
+## Errores comunes a evitar
+
+- Confundir “Web” con todo Internet y perder superficies no HTTP.
+- Escanear agresivamente producción sin límites de tasa.
+- Asumir que ARP‑scan ve toda la organización (no cruza VLANs).
+- No registrar rutas ni DNS al inicio (rompe reproducibilidad).
+
+Con esto, la nota queda robusta para una base de “Internet y Redes” adaptada a auditorías ofensivas y preparación de laboratorios sin ruido innecesario.
+<span style="display:none">[^10][^3][^5][^7][^9]</span>
+
+<div style="text-align: center">Internet y redes (pentesting)</div>
+
+[^1]: https://es.wikipedia.org/wiki/World_Wide_Web
+    
+[^2]: https://developer.mozilla.org/es/docs/Glossary/World_Wide_Web
+    
+[^3]: https://concepto.de/www/
+    
+[^4]: https://taniaizquierdo.com/world-wide-web/
+    
+[^5]: https://www.significados.com/www/
+    
+[^6]: https://prehost.com/es/web-mundial/
+    
+[^7]: http://ific.uv.es/wop/SABER_MAS/internet.html
+    
+[^8]: https://dominiozero.es/blog/que-significa-www/
+    
+[^9]: https://www.youtube.com/watch?v=cpcI_fqX4zY
+    
+[^10]: https://niaxus.com/2024/05/20/que-es-world-wide-web/

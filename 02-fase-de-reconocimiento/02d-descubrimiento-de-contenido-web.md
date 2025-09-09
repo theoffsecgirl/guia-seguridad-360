@@ -1,57 +1,158 @@
-# Descubrimiento de Contenido Web
+# Descubrimiento de contenido web
 
-Una vez que hemos identificado los servidores web activos en la fase de reconocimiento, el siguiente paso es descubrir el contenido y la funcionalidad que albergan. A menudo, las partes más interesantes de una aplicación no están enlazadas desde la página principal.
+Tras identificar hosts web activos, el objetivo es aflorar rutas, endpoints y artefactos no enlazados que amplíen la superficie explotable, priorizando directorios sensibles, APIs, paneles y ficheros clave como .git o .env.[^1]
+La combinación de crawling selectivo, fuzzing de rutas con buenas wordlists y análisis de JavaScript suele ofrecer el mayor retorno con bajo ruido si se configura correctamente.[^1]
 
-### Objetivos del Descubrimiento de Contenido
+## Objetivos ofensivos clave[^1]
 
-El objetivo de esta fase es encontrar:
+- Directorios/archivos sensibles (/admin, /backup, /config, .git, .env) que habiliten acceso o filtración directa.[^1]
+- Endpoints de API no documentados y documentación técnica (Swagger/OpenAPI/Postman) para pivotar a pruebas lógicas.[^1]
+- Paneles de administración y páginas de debug con trazas o toggles de modo desarrollo.[^1]
 
-* Directorios y archivos sensibles (`/admin`, `/backup`).
-* Endpoints de API ocultos o no enlazados directamente.
-* Documentación técnica (Swagger, OpenAPI, Postman collections).
-* Paneles de administración.
-* Archivos de diagnóstico, debug o logs expuestos.
-* **Y, con suerte, ficheros que lleven a un compromiso directo, como `.git/config` o `.env`**.
+## Métodos principales[^1]
 
----
+### 1) Crawling/Spidering dirigido
 
-## Métodos Principales
+Mapea enlaces visibles y descubre rutas internas enlazadas desde HTML/JS, evitando golpes profundos a contenido irrelevante.[^1]
 
-Existen varias técnicas clave para descubrir este contenido oculto.
+- Herramientas: Burp (Crawler), katana, hakrawler, gospider; priorizar include de mismos orígenes y límites de profundidad para no generar ruido inútil.[^1]
 
-### 1. Crawling / Spidering
+### 2) Fuerza bruta de rutas (fuzzing)
 
-Este método consiste en explorar sistemáticamente un sitio web siguiendo todos los enlaces que encuentra, de la misma forma que lo hace un motor de búsqueda. Es una excelente manera de mapear rápidamente toda la funcionalidad visible de una aplicación.
+Descubre recursos no enlazados probando listas de palabras con filtros por código, tamaño y firmas, apoyándose en exclusiones para 404 “blandos”.[^1]
 
-* **Herramientas Comunes:** Burp Suite (función "Spider"), `gospider`, `hakrawler`, `katana`.
+- Herramientas: ffuf, dirsearch, wfuzz, gobuster dir; la configuración precisa marca la diferencia entre ruido y señal.[^1]
+- Ejemplo ffuf básico:
 
-### 2. Fuerza Bruta de Directorios y Archivos (Fuzzing)
+```bash
+ffuf -w /path/SecLists/Discovery/Web-Content/common.txt -u https://target.tld/FUZZ -mc 200,204,301,302,307,401,403
+```
 
-Esta es una de las técnicas más importantes. Consiste en utilizar diccionarios (listas de palabras) para intentar "adivinar" rutas y nombres de archivos o directorios que existen en el servidor pero que no están enlazados.
+Este patrón cubre códigos habituales y descubre recursos accesibles o protegidos que deben revisarse con sesión/roles adecuados.[^1]
 
-* **Wordlists (Diccionarios):** La calidad de tu lista de palabras es crucial. Se recomienda usar colecciones de alta calidad como **SecLists**.
-* **Herramientas Comunes:** `dirsearch`, `ffuf`, `wfuzz`, `gobuster dir`.
-* **Comando Ejemplo con `ffuf`:**
-  ```bash
-  ffuf -w /ruta/a/SecLists/Discovery/Web-Content/common.txt -u [https://target.com/FUZZ](https://target.com/FUZZ) -mc 200,204,301,302,307,401,403
-  ```
+- Extensiones y recursividad con ffuf:
 
-### 3. Análisis de Archivos JavaScript
+```bash
+# Probar extensiones típicas
+ffuf -w /path/SecLists/Discovery/Web-Content/web-extensions.txt:EXT -u https://target.tld/indexEXT -fc 404
+# Recursivo por descubrimientos
+ffuf -w /path/SecLists/Discovery/Web-Content/directory-list-2.3-small.txt -u https://target.tld/FUZZ -recursion -recursion-depth 2 -fc 404
+```
 
-El código JavaScript que se ejecuta en el navegador del cliente es una mina de oro. A menudo contiene rutas a endpoints de API, lógica de la aplicación, y comentarios con información sensible.
+Ajustar -fc/-fs y profundidad para controlar falsos positivos y coste temporal.[^2]
 
-* **Herramientas Comunes:** `LinkFinder`, `JSScanner` (Extensión de Burp), `SecretFinder`.
+- Dirsearch alternativo:
 
-### 4. Visual Recon
+```bash
+dirsearch -u https://target.tld -w /path/wordlist.txt --recursion --exclude-status=404
+```
 
-Esta técnica consiste en tomar capturas de pantalla de un gran número de sitios web para identificar visualmente aquellos que parecen más interesantes (páginas de login, aplicaciones desactualizadas, errores, etc.).
+Dirsearch incorpora filtros, recursión, prefijos/sufijos y reportes, útil para barridos rápidos reproducibles.[^4]
 
-* **Herramientas Comunes:** `aquatone`, `webscreenshot`, `gowitness`.
+### 3) Análisis de JavaScript
 
----
+Extrae endpoints, parámetros y rutas de APIs desde JS, incluidos artefactos “huérfanos” no enlazados.[^1]
 
-## Próximo Paso: Los Archivos Más Buscados
+- Herramientas: LinkFinder/xnLinkFinder, extensiones de Burp, y utilidades similares para enumerar endpoints a partir de JS.[^1]
+- Uso típico: descargar JS estáticos, pasar el parser y volcar rutas candidatas a un fuzzing/validación HTTP posterior.[^6]
 
-Hemos visto las técnicas para encontrar contenido, pero ¿qué tipo de archivos son los más valiosos?
+### 4) Visual recon
 
-> **Para una guía detallada sobre los tipos de archivos más valiosos que buscamos, consulta nuestra página dedicada: [Técnica Profunda: Ficheros Sensibles Expuestos](./02d-1-ficheros-sensibles.md)**
+Captura pantallas a escala para priorizar logins, errores o software legacy antes de profundizar, ahorrando tiempo de análisis manual.[^1]
+
+- Herramientas: aquatone, gowitness, webscreenshot; ejecutar sobre hosts de httpx con status 200/401/403 para eficiencia.[^1]
+
+## Comandos prácticos (copy/paste)[^1]
+
+- Fuzzing base con ffuf (filtrando 404 blandos por tamaño)
+
+```bash
+ffuf -w /path/SecLists/Discovery/Web-Content/common.txt -u https://target.tld/FUZZ -fs 0 -mc 200,204,301,302,307,401,403
+```
+
+Ajustar -fs/-fw según firmas específicas del target para evitar listados falsos.[^2]
+
+- Fuzzing de extensiones y php/js:
+
+```bash
+ffuf -w /path/SecLists/Discovery/Web-Content/web-extensions.txt:EXT -u https://target.tld/FUZZ.EXT -fc 404
+```
+
+Cubre rutas que requieren extensión para resolver contenido real.[^3]
+
+- Dirsearch con reporte:
+
+```bash
+dirsearch -u https://target.tld -w /path/SecLists/Discovery/Web-Content/common.txt -x 404,400 -r -o report.txt
+```
+
+Genera un reporte consumible para triaje y seguimiento.[^4]
+
+- LinkFinder (JS → endpoints):
+
+```bash
+python3 linkfinder.py -i https://target.tld/app.js -o cli
+```
+
+Volcar endpoints a una lista para validación con httpx/ffuf en un siguiente paso.[^5]
+
+## Prioridades y señales[^1]
+
+- 401/403 en rutas sensibles indica control de acceso; revalidar con sesión/roles y pruebas de autorización (IDOR/BOLA/BFLA) antes que XSS/SQLi.[^1]
+- Documentación expuesta (swagger.json, /docs, /openapi) y backups/logs (.zip, .bak, .log) suelen ser atajos a hallazgos de impacto.[^1]
+- .git/.env o “config” accesibles son críticos y requieren manejo responsable y reporte inmediato según alcance.[^1]
+
+## Buenas prácticas operativas[^1]
+
+- Ajustar tasa y profundidad según respuesta del sitio para no activar WAF/ratelimits, y registrar filtros usados (-fc/-fs/-fw) para reproducibilidad.[^1]
+- Combinar crawling ligero con fuzzing focalizado por tecnología detectada (PHP, Node, Java) para reducir el espacio de búsqueda.[^1]
+- Integrar resultados en un pipeline con httpx para títulos/tecnologías y con un checklist de “ficheros más buscados” para validar rápido el impacto.[^1]
+
+## Siguiente paso[^1]
+
+- Pasar a la técnica profunda de ficheros sensibles expuestos y validar inmediatamente hallazgos críticos con evidencia mínima, severidad estimada y mitigación clara.[^1]
+  <span style="display:none">[^11][^13][^15][^17][^19][^21][^8][^9]</span>
+
+<div style="text-align: center">Descubrimiento de contenido web</div>
+
+[^1]: 02d-descubrimiento-de-contenido-web.md
+    
+[^2]: https://github.com/ffuf/ffuf
+    
+[^3]: https://ffuf.hashnode.dev/basic-fuzzing
+    
+[^4]: https://github.com/maurosoria/dirsearch
+    
+[^5]: https://github.com/GerbenJavado/LinkFinder
+    
+[^6]: https://www.geeksforgeeks.org/linux-unix/linkfinder-script-to-search-endpoints-in-javascript-files/
+    
+[^7]: https://hackviser.com/tactics/tools/ffuf
+    
+[^8]: https://ffuf.hashnode.dev/fuzzing-using-ffuf
+    
+[^9]: https://www.hackercoolmagazine.com/beginners-guide-to-ffuf-tool/
+    
+[^10]: https://github.com/evilsocket/dirsearch
+    
+[^11]: https://github.com/ligurina/JS-LinkFinder
+    
+[^12]: https://hackzapsecurity.in/Blogs/blogCardPages/blogs/fuzz-hidden-directories.html
+    
+[^13]: https://www.kali.org/tools/ffuf/
+    
+[^14]: https://github.com/dirsearch
+    
+[^15]: https://github.com/nirsarkar/dirsearch-master
+    
+[^16]: https://github.com/xnl-h4ck3r/xnLinkFinder
+    
+[^17]: https://github.com/topics/dirsearch
+    
+[^18]: https://github.com/topics/linkfinder?l=javascript
+    
+[^19]: https://www.kali.org/tools/dirsearch/
+    
+[^20]: https://github.com/Raunaksplanet/LinkFinder-Web-Version
+    
+[^21]: https://gist.github.com/hax0rgb/505b5de6be0a78fbd9dd0f46efbe754d
