@@ -1,5 +1,3 @@
-<img src="https://r2cdn.perplexity.ai/pplx-full-logo-primary-dark%402x.png" style="height:64px;margin-right:32px"/>
-
 # Gestión de Sesiones y Device Binding
 
 ## Resumen
@@ -152,8 +150,6 @@ for token in TOKENS:
 
 ---
 
-
+https://ppl-ai-code-interpreter-files.s3.amazonaws.com/web/direct-files/0f2fad86bd054dd6ca23d8ede0430158/55edaabf-2d24-4ffd-803d-35b67d664a10/b7db4d1d.md
 
 [^1]:
-
-https://ppl-ai-code-interpreter-files.s3.amazonaws.com/web/direct-files/0f2fad86bd054dd6ca23d8ede0430158/55edaabf-2d24-4ffd-803d-35b67d664a10/b7db4d1d.md
