@@ -147,9 +147,3 @@ for token in TOKENS:
 
 **Evidencias:** Logs de servidor mostrando sesión `FIXEDSESSIONID` activa para el usuario víctima.
 **Mitigación:** Regenerar sesión, validar `device_id` y establecer flags de cookie seguros.
-
----
-
-https://ppl-ai-code-interpreter-files.s3.amazonaws.com/web/direct-files/0f2fad86bd054dd6ca23d8ede0430158/55edaabf-2d24-4ffd-803d-35b67d664a10/b7db4d1d.md
-
-[^1]:
