@@ -1,4 +1,4 @@
-# Arquitectura de iOS para Bug Bounty Hunting
+# Arquitectura de iOS 
 
 Comprender la arquitectura de iOS es fundamental para cualquier investigación de seguridad o bug bounty. Este conocimiento permite identificar posibles vectores de ataque, comprender cómo están protegidas las aplicaciones y saber en qué puntos puede fallar el sistema.
 
